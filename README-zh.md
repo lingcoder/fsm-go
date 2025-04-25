@@ -60,26 +60,10 @@ const (
 	EventCancel  OrderEvent = "CANCEL"
 )
 
-// 定义上下文
+// 定义载荷
 type OrderPayload struct {
 	OrderID string
 	Amount  float64
-}
-
-// 定义动作
-type OrderAction struct{}
-
-func (a *OrderAction) Execute(from OrderState, to OrderState, event OrderEvent, payload OrderPayload) error {
-	fmt.Printf("订单 %s 从 %s 状态转换到 %s 状态，触发事件: %s\n",
-		payload.OrderID, from, to, event)
-	return nil
-}
-
-// 定义条件
-type OrderCondition struct{}
-
-func (c *OrderCondition) IsSatisfied(payload OrderPayload) bool {
-	return true
 }
 
 func main() {
@@ -91,15 +75,40 @@ func main() {
 		From(OrderCreated).
 		To(OrderPaid).
 		On(EventPay).
-		When(&OrderCondition{}).
-		Perform(&OrderAction{})
+		WhenFunc(func(payload OrderPayload) bool {
+			// 检查金额是否有效
+			return payload.Amount > 0
+		}).
+		PerformFunc(func(from, to OrderState, event OrderEvent, payload OrderPayload) error {
+			fmt.Printf("订单 %s 从 %s 状态转换到 %s 状态，触发事件: %s\n",
+				payload.OrderID, from, to, event)
+			return nil
+		})
 
 	builder.ExternalTransition().
 		From(OrderPaid).
 		To(OrderShipped).
 		On(EventShip).
-		When(&OrderCondition{}).
-		Perform(&OrderAction{})
+		WhenFunc(func(payload OrderPayload) bool {
+			return true
+		}).
+		PerformFunc(func(from, to OrderState, event OrderEvent, payload OrderPayload) error {
+			fmt.Printf("订单 %s 正在发货\n", payload.OrderID)
+			return nil
+		})
+
+	// 定义多源状态转换
+	builder.ExternalTransitions().
+		FromAmong(OrderCreated, OrderPaid, OrderShipped).
+		To(OrderCancelled).
+		On(EventCancel).
+		WhenFunc(func(payload OrderPayload) bool {
+			return true
+		}).
+		PerformFunc(func(from, to OrderState, event OrderEvent, payload OrderPayload) error {
+			fmt.Printf("订单 %s 从 %s 状态取消\n", payload.OrderID, from)
+			return nil
+		})
 
 	// 构建状态机
 	stateMachine, err := builder.Build("OrderStateMachine")
@@ -107,7 +116,7 @@ func main() {
 		log.Fatalf("构建状态机失败: %v", err)
 	}
 
-	// 创建上下文
+	// 创建载荷
 	payload := OrderPayload{
 		OrderID: "ORD-20250425-001",
 		Amount:  100.0,
@@ -121,7 +130,6 @@ func main() {
 
 	fmt.Printf("新状态: %v\n", newState)
 }
-```
 
 ## 🧩 核心概念
 

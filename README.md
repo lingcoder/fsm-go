@@ -66,22 +66,6 @@ type OrderPayload struct {
 	Amount  float64
 }
 
-// Define action
-type OrderAction struct{}
-
-func (a *OrderAction) Execute(from OrderState, to OrderState, event OrderEvent, payload OrderPayload) error {
-	fmt.Printf("Order %s transitioning from %s to %s on event %s\n",
-		payload.OrderID, from, to, event)
-	return nil
-}
-
-// Define condition
-type OrderCondition struct{}
-
-func (c *OrderCondition) IsSatisfied(payload OrderPayload) bool {
-	return true
-}
-
 func main() {
 	// Create a builder
 	builder := fsm.NewStateMachineBuilder[OrderState, OrderEvent, OrderPayload]()
@@ -91,15 +75,40 @@ func main() {
 		From(OrderCreated).
 		To(OrderPaid).
 		On(EventPay).
-		When(&OrderCondition{}).
-		Perform(&OrderAction{})
+		WhenFunc(func(payload OrderPayload) bool {
+			// Check if amount is valid
+			return payload.Amount > 0
+		}).
+		PerformFunc(func(from, to OrderState, event OrderEvent, payload OrderPayload) error {
+			fmt.Printf("Order %s transitioning from %s to %s on event %s\n",
+				payload.OrderID, from, to, event)
+			return nil
+		})
 
 	builder.ExternalTransition().
 		From(OrderPaid).
 		To(OrderShipped).
 		On(EventShip).
-		When(&OrderCondition{}).
-		Perform(&OrderAction{})
+		WhenFunc(func(payload OrderPayload) bool {
+			return true
+		}).
+		PerformFunc(func(from, to OrderState, event OrderEvent, payload OrderPayload) error {
+			fmt.Printf("Order %s is being shipped\n", payload.OrderID)
+			return nil
+		})
+
+	// Define multiple source transitions
+	builder.ExternalTransitions().
+		FromAmong(OrderCreated, OrderPaid, OrderShipped).
+		To(OrderCancelled).
+		On(EventCancel).
+		WhenFunc(func(payload OrderPayload) bool {
+			return true
+		}).
+		PerformFunc(func(from, to OrderState, event OrderEvent, payload OrderPayload) error {
+			fmt.Printf("Order %s cancelled from %s state\n", payload.OrderID, from)
+			return nil
+		})
 
 	// Build the state machine
 	stateMachine, err := builder.Build("OrderStateMachine")
@@ -121,7 +130,6 @@ func main() {
 
 	fmt.Printf("New state: %v\n", newState)
 }
-```
 
 ## 🧩 Core Concepts
 
