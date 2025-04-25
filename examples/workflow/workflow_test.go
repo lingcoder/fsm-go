@@ -169,7 +169,7 @@ func createInvalidPayload() ApprovalPayload {
 // TestApprovalWorkflow tests the basic functionality of an approval workflow state machine
 func TestApprovalWorkflow(t *testing.T) {
 	stateMachine, action := setupApprovalWorkflow(t)
-
+	fmt.Println(stateMachine.GenerateDiagram(fsm.PlantUML, fsm.MarkdownTable, fsm.MarkdownFlowchart, fsm.MarkdownStateDiagram))
 	// Define test cases
 	testCases := []struct {
 		name           string

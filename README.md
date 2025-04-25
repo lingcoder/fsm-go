@@ -131,6 +131,8 @@ func main() {
 	fmt.Printf("New state: %v\n", newState)
 }
 
+```
+
 ## 🧩 Core Concepts
 
 | Concept | Description |

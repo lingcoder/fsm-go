@@ -130,6 +130,7 @@ func main() {
 
 	fmt.Printf("新状态: %v\n", newState)
 }
+```
 
 ## 🧩 核心概念
 

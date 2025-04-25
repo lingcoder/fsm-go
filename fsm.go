@@ -485,12 +485,7 @@ func (sm *StateMachineImpl[S, E, P]) generateMarkdownStateDiagram() string {
 	var sb strings.Builder
 	sb.WriteString("```mermaid\nstateDiagram-v2\n")
 
-	// Add states
-	for _, state := range sm.stateMap {
-		sb.WriteString(fmt.Sprintf("    %v\n", state.id))
-	}
-
-	// Add transitions
+	// Add transitions (states are automatically created in Mermaid)
 	for _, state := range sm.stateMap {
 		for event, transitions := range state.eventTransitions {
 			for _, transition := range transitions {

@@ -1,6 +1,6 @@
 package fsm
 
-// Step marker interfaces to enforce the correct order of method calls
+// FromStep Step marker interfaces to enforce the correct order of method calls
 type FromStep interface{}
 type ToStep interface{}
 type OnStep interface{}
