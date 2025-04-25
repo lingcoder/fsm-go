@@ -159,11 +159,7 @@ func (b *TransitionBuilder[S, E, P]) WhenFunc(conditionFunc func(payload P) bool
 // Parameters:
 //
 //	action: The action to execute when the transition occurs
-//
-// Returns:
-//
-//	The transition builder for method chaining
-func (b *TransitionBuilder[S, E, P]) Perform(action Action[S, E, P]) *TransitionBuilder[S, E, P] {
+func (b *TransitionBuilder[S, E, P]) Perform(action Action[S, E, P]) {
 	b.action = action
 
 	// Get or create source and target states
@@ -176,19 +172,13 @@ func (b *TransitionBuilder[S, E, P]) Perform(action Action[S, E, P]) *Transition
 	// Set condition and action
 	transition.Condition = b.condition
 	transition.Action = b.action
-
-	return b
 }
 
 // PerformFunc specifies a function as the action to execute during the transition
 // Parameters:
 //
 //	actionFunc: The function to execute when the transition occurs
-//
-// Returns:
-//
-//	The transition builder for method chaining
-func (b *TransitionBuilder[S, E, P]) PerformFunc(actionFunc func(from, to S, event E, payload P) error) *TransitionBuilder[S, E, P] {
+func (b *TransitionBuilder[S, E, P]) PerformFunc(actionFunc func(from, to S, event E, payload P) error) {
 	b.action = ActionFunc[S, E, P](actionFunc)
 
 	// Get or create source and target states
@@ -201,8 +191,6 @@ func (b *TransitionBuilder[S, E, P]) PerformFunc(actionFunc func(from, to S, eve
 	// Set condition and action
 	transition.Condition = b.condition
 	transition.Action = b.action
-
-	return b
 }
 
 // MultipleTransitionBuilder builds transitions from multiple source states to a single target state
@@ -285,50 +273,42 @@ func (b *MultipleTransitionBuilder[S, E, P]) WhenFunc(conditionFunc func(payload
 // Parameters:
 //
 //	action: The action to execute when the transitions occur
-//
-// Returns:
-//
-//	The multiple transition builder for method chaining
-func (b *MultipleTransitionBuilder[S, E, P]) Perform(action Action[S, E, P]) *MultipleTransitionBuilder[S, E, P] {
+func (b *MultipleTransitionBuilder[S, E, P]) Perform(action Action[S, E, P]) {
 	b.action = action
-
-	// Get or create target state
-	targetState := b.stateMachine.GetState(b.targetId)
 
 	// Create transitions for each source state
 	for _, sourceId := range b.sourceIds {
 		sourceState := b.stateMachine.GetState(sourceId)
+		targetState := b.stateMachine.GetState(b.targetId)
+
+		// Add the transition to the source state
 		transition := sourceState.AddTransition(b.event, targetState, b.transitionType)
+
+		// Set condition and action
 		transition.Condition = b.condition
 		transition.Action = b.action
 	}
-
-	return b
 }
 
 // PerformFunc specifies a function as the action to execute during all transitions
 // Parameters:
 //
 //	actionFunc: The function to execute when the transitions occur
-//
-// Returns:
-//
-//	The multiple transition builder for method chaining
-func (b *MultipleTransitionBuilder[S, E, P]) PerformFunc(actionFunc func(from, to S, event E, payload P) error) *MultipleTransitionBuilder[S, E, P] {
+func (b *MultipleTransitionBuilder[S, E, P]) PerformFunc(actionFunc func(from, to S, event E, payload P) error) {
 	b.action = ActionFunc[S, E, P](actionFunc)
 
-	// Get or create target state
-	targetState := b.stateMachine.GetState(b.targetId)
-
-	// Create transitions from all source states
+	// Create transitions for each source state
 	for _, sourceId := range b.sourceIds {
 		sourceState := b.stateMachine.GetState(sourceId)
+		targetState := b.stateMachine.GetState(b.targetId)
+
+		// Add the transition to the source state
 		transition := sourceState.AddTransition(b.event, targetState, b.transitionType)
+
+		// Set condition and action
 		transition.Condition = b.condition
 		transition.Action = b.action
 	}
-
-	return b
 }
 
 // ParallelTransitionBuilder builds transitions to multiple target states
@@ -411,64 +391,36 @@ func (b *ParallelTransitionBuilder[S, E, P]) WhenFunc(conditionFunc func(payload
 // Parameters:
 //
 //	action: The action to execute when the transitions occur
-//
-// Returns:
-//
-//	The parallel transition builder for method chaining
-func (b *ParallelTransitionBuilder[S, E, P]) Perform(action Action[S, E, P]) *ParallelTransitionBuilder[S, E, P] {
+func (b *ParallelTransitionBuilder[S, E, P]) Perform(action Action[S, E, P]) {
 	b.action = action
 
 	// Get or create source state
 	sourceState := b.stateMachine.GetState(b.sourceId)
 
-	// Get or create all target states
-	targetStates := make([]*State[S, E, P], 0, len(b.targetIds))
+	// Create transitions to all target states
 	for _, targetId := range b.targetIds {
 		targetState := b.stateMachine.GetState(targetId)
-		targetStates = append(targetStates, targetState)
-	}
-
-	// Add parallel transitions
-	transitions := sourceState.AddParallelTransitions(b.event, targetStates, b.transitionType)
-
-	// Set condition and action for all transitions
-	for _, transition := range transitions {
+		transition := sourceState.AddTransition(b.event, targetState, b.transitionType)
 		transition.Condition = b.condition
 		transition.Action = b.action
 	}
-
-	return b
 }
 
 // PerformFunc specifies a function as the action to execute during all transitions
 // Parameters:
 //
 //	actionFunc: The function to execute when the transitions occur
-//
-// Returns:
-//
-//	The parallel transition builder for method chaining
-func (b *ParallelTransitionBuilder[S, E, P]) PerformFunc(actionFunc func(from, to S, event E, payload P) error) *ParallelTransitionBuilder[S, E, P] {
+func (b *ParallelTransitionBuilder[S, E, P]) PerformFunc(actionFunc func(from, to S, event E, payload P) error) {
 	b.action = ActionFunc[S, E, P](actionFunc)
 
 	// Get or create source state
 	sourceState := b.stateMachine.GetState(b.sourceId)
 
 	// Create transitions to all target states
-	targetStates := make([]*State[S, E, P], 0, len(b.targetIds))
 	for _, targetId := range b.targetIds {
 		targetState := b.stateMachine.GetState(targetId)
-		targetStates = append(targetStates, targetState)
-	}
-
-	// Add parallel transitions
-	transitions := sourceState.AddParallelTransitions(b.event, targetStates, b.transitionType)
-
-	// Set condition and action for each transition
-	for _, transition := range transitions {
+		transition := sourceState.AddTransition(b.event, targetState, b.transitionType)
 		transition.Condition = b.condition
 		transition.Action = b.action
 	}
-
-	return b
 }
