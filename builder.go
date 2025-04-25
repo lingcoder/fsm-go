@@ -2,8 +2,7 @@ package fsm
 
 // StateMachineBuilder builds state machines with a fluent API
 type StateMachineBuilder[S comparable, E comparable, C any] struct {
-	stateMachine       *StateMachineImpl[S, E, C]
-	pendingTransitions []*Transition[S, E, C]
+	stateMachine *StateMachineImpl[S, E, C]
 }
 
 // NewStateMachineBuilder creates a new builder
@@ -12,8 +11,7 @@ type StateMachineBuilder[S comparable, E comparable, C any] struct {
 //	A new state machine builder instance
 func NewStateMachineBuilder[S comparable, E comparable, C any]() *StateMachineBuilder[S, E, C] {
 	return &StateMachineBuilder[S, E, C]{
-		stateMachine:       NewStateMachine[S, E, C](""),
-		pendingTransitions: make([]*Transition[S, E, C], 0),
+		stateMachine: NewStateMachine[S, E, C](""),
 	}
 }
 
@@ -25,7 +23,6 @@ func (b *StateMachineBuilder[S, E, C]) ExternalTransition() *TransitionBuilder[S
 	return &TransitionBuilder[S, E, C]{
 		stateMachine:   b.stateMachine,
 		transitionType: External,
-		builder:        b,
 	}
 }
 
@@ -37,7 +34,6 @@ func (b *StateMachineBuilder[S, E, C]) InternalTransition() *TransitionBuilder[S
 	return &TransitionBuilder[S, E, C]{
 		stateMachine:   b.stateMachine,
 		transitionType: Internal,
-		builder:        b,
 	}
 }
 
@@ -49,7 +45,6 @@ func (b *StateMachineBuilder[S, E, C]) ExternalTransitions() *MultipleTransition
 	return &MultipleTransitionBuilder[S, E, C]{
 		stateMachine:   b.stateMachine,
 		transitionType: External,
-		builder:        b,
 	}
 }
 
@@ -63,14 +58,7 @@ func (b *StateMachineBuilder[S, E, C]) ExternalTransitions() *MultipleTransition
 //	The built state machine and possible error
 func (b *StateMachineBuilder[S, E, C]) Build(machineId string) (StateMachine[S, E, C], error) {
 	b.stateMachine.id = machineId
-
-	// Register all pending transitions
-	for _, transition := range b.pendingTransitions {
-		err := b.stateMachine.RegisterTransition(transition)
-		if err != nil {
-			return nil, err
-		}
-	}
+	b.stateMachine.SetReady(true)
 
 	// Register the state machine in a factory
 	err := RegisterStateMachine[S, E, C](machineId, b.stateMachine)
@@ -84,12 +72,11 @@ func (b *StateMachineBuilder[S, E, C]) Build(machineId string) (StateMachine[S, 
 type TransitionBuilder[S comparable, E comparable, C any] struct {
 	stateMachine   *StateMachineImpl[S, E, C]
 	transitionType TransitionType
-	source         S
-	target         S
+	sourceId       S
+	targetId       S
 	event          E
-	conditions     []Condition[C]
-	actions        []Action[S, E, C]
-	builder        *StateMachineBuilder[S, E, C]
+	condition      Condition[C]
+	action         Action[S, E, C]
 }
 
 // From specifies the source state
@@ -101,7 +88,7 @@ type TransitionBuilder[S comparable, E comparable, C any] struct {
 //
 //	The transition builder for method chaining
 func (b *TransitionBuilder[S, E, C]) From(state S) *TransitionBuilder[S, E, C] {
-	b.source = state
+	b.sourceId = state
 	return b
 }
 
@@ -114,7 +101,7 @@ func (b *TransitionBuilder[S, E, C]) From(state S) *TransitionBuilder[S, E, C] {
 //
 //	The transition builder for method chaining
 func (b *TransitionBuilder[S, E, C]) To(state S) *TransitionBuilder[S, E, C] {
-	b.target = state
+	b.targetId = state
 	return b
 }
 
@@ -140,7 +127,7 @@ func (b *TransitionBuilder[S, E, C]) On(event E) *TransitionBuilder[S, E, C] {
 //
 //	The transition builder for method chaining
 func (b *TransitionBuilder[S, E, C]) When(condition Condition[C]) *TransitionBuilder[S, E, C] {
-	b.conditions = append(b.conditions, condition)
+	b.condition = condition
 	return b
 }
 
@@ -153,20 +140,19 @@ func (b *TransitionBuilder[S, E, C]) When(condition Condition[C]) *TransitionBui
 //
 //	The transition builder for method chaining
 func (b *TransitionBuilder[S, E, C]) Perform(action Action[S, E, C]) *TransitionBuilder[S, E, C] {
-	b.actions = append(b.actions, action)
+	b.action = action
 
-	// Create the transition and add to pending transitions
-	transition := &Transition[S, E, C]{
-		Source:     b.source,
-		Target:     b.target,
-		Event:      b.event,
-		Conditions: b.conditions,
-		Actions:    b.actions,
-		TransType:  b.transitionType,
-	}
+	// Get or create source and target states
+	sourceState := b.stateMachine.GetState(b.sourceId)
+	targetState := b.stateMachine.GetState(b.targetId)
 
-	// Add to pending transitions
-	b.builder.pendingTransitions = append(b.builder.pendingTransitions, transition)
+	// Add the transition to the source state
+	transition := sourceState.AddTransition(b.event, targetState, b.transitionType)
+
+	// Set condition and action
+	transition.Condition = b.condition
+	transition.Action = b.action
+
 	return b
 }
 
@@ -174,12 +160,11 @@ func (b *TransitionBuilder[S, E, C]) Perform(action Action[S, E, C]) *Transition
 type MultipleTransitionBuilder[S comparable, E comparable, C any] struct {
 	stateMachine   *StateMachineImpl[S, E, C]
 	transitionType TransitionType
-	sources        []S
-	target         S
+	sourceIds      []S
+	targetId       S
 	event          E
-	conditions     []Condition[C]
-	actions        []Action[S, E, C]
-	builder        *StateMachineBuilder[S, E, C]
+	condition      Condition[C]
+	action         Action[S, E, C]
 }
 
 // FromAmong specifies multiple source states
@@ -191,7 +176,7 @@ type MultipleTransitionBuilder[S comparable, E comparable, C any] struct {
 //
 //	The multiple transition builder for method chaining
 func (b *MultipleTransitionBuilder[S, E, C]) FromAmong(states ...S) *MultipleTransitionBuilder[S, E, C] {
-	b.sources = states
+	b.sourceIds = states
 	return b
 }
 
@@ -204,7 +189,7 @@ func (b *MultipleTransitionBuilder[S, E, C]) FromAmong(states ...S) *MultipleTra
 //
 //	The multiple transition builder for method chaining
 func (b *MultipleTransitionBuilder[S, E, C]) To(state S) *MultipleTransitionBuilder[S, E, C] {
-	b.target = state
+	b.targetId = state
 	return b
 }
 
@@ -230,7 +215,7 @@ func (b *MultipleTransitionBuilder[S, E, C]) On(event E) *MultipleTransitionBuil
 //
 //	The multiple transition builder for method chaining
 func (b *MultipleTransitionBuilder[S, E, C]) When(condition Condition[C]) *MultipleTransitionBuilder[S, E, C] {
-	b.conditions = append(b.conditions, condition)
+	b.condition = condition
 	return b
 }
 
@@ -243,21 +228,22 @@ func (b *MultipleTransitionBuilder[S, E, C]) When(condition Condition[C]) *Multi
 //
 //	The multiple transition builder for method chaining
 func (b *MultipleTransitionBuilder[S, E, C]) Perform(action Action[S, E, C]) *MultipleTransitionBuilder[S, E, C] {
-	b.actions = append(b.actions, action)
+	b.action = action
 
-	// Create transitions for each source state
-	for _, source := range b.sources {
-		transition := &Transition[S, E, C]{
-			Source:     source,
-			Target:     b.target,
-			Event:      b.event,
-			Conditions: b.conditions,
-			Actions:    b.actions,
-			TransType:  b.transitionType,
-		}
+	// Get or create target state
+	targetState := b.stateMachine.GetState(b.targetId)
 
-		// Add to pending transitions
-		b.builder.pendingTransitions = append(b.builder.pendingTransitions, transition)
+	// For each source state, add a transition
+	for _, sourceId := range b.sourceIds {
+		sourceState := b.stateMachine.GetState(sourceId)
+
+		// Add the transition to the source state
+		transition := sourceState.AddTransition(b.event, targetState, b.transitionType)
+
+		// Set condition and action
+		transition.Condition = b.condition
+		transition.Action = b.action
 	}
+
 	return b
 }

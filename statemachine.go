@@ -22,15 +22,44 @@ type StateMachine[S comparable, E comparable, C any] interface {
 	GeneratePlantUML() string
 }
 
-// Transition represents a state transition
-type Transition[S comparable, E comparable, C any] struct {
-	Source      S
-	Target      S
-	Event       E
-	Conditions  []Condition[C]
-	Actions     []Action[S, E, C]
-	TransType   TransitionType
-	Description string
+// State represents a state in the state machine
+type State[S comparable, E comparable, C any] struct {
+	id               S
+	eventTransitions map[E][]*Transition[S, E, C]
+}
+
+// NewState creates a new state
+func NewState[S comparable, E comparable, C any](id S) *State[S, E, C] {
+	return &State[S, E, C]{
+		id:               id,
+		eventTransitions: make(map[E][]*Transition[S, E, C]),
+	}
+}
+
+// AddTransition adds a transition to this state
+func (s *State[S, E, C]) AddTransition(event E, target *State[S, E, C], transType TransitionType) *Transition[S, E, C] {
+	transition := &Transition[S, E, C]{
+		Source:    s,
+		Target:    target,
+		Event:     event,
+		TransType: transType,
+	}
+
+	if _, ok := s.eventTransitions[event]; !ok {
+		s.eventTransitions[event] = make([]*Transition[S, E, C], 0)
+	}
+	s.eventTransitions[event] = append(s.eventTransitions[event], transition)
+	return transition
+}
+
+// GetEventTransitions returns all transitions for a given event
+func (s *State[S, E, C]) GetEventTransitions(event E) []*Transition[S, E, C] {
+	return s.eventTransitions[event]
+}
+
+// GetID returns the state ID
+func (s *State[S, E, C]) GetID() S {
+	return s.id
 }
 
 // TransitionType defines the type of transition
@@ -55,87 +84,116 @@ type Action[S comparable, E comparable, C any] interface {
 	Execute(from, to S, event E, ctx C) error
 }
 
+// Transition represents a state transition
+type Transition[S comparable, E comparable, C any] struct {
+	Source    *State[S, E, C]
+	Target    *State[S, E, C]
+	Event     E
+	Condition Condition[C]
+	Action    Action[S, E, C]
+	TransType TransitionType
+}
+
+// Transit executes the transition
+func (t *Transition[S, E, C]) Transit(ctx C, checkCondition bool) (*State[S, E, C], error) {
+	// Verify internal transition
+	if t.TransType == Internal && t.Source != t.Target {
+		return nil, errors.New("internal transition source and target states must be the same")
+	}
+
+	// Check condition if required
+	if checkCondition && t.Condition != nil && !t.Condition.IsSatisfied(ctx) {
+		return t.Source, nil // Stay at source state if condition is not satisfied
+	}
+
+	// Execute action
+	if t.Action != nil {
+		if err := t.Action.Execute(t.Source.GetID(), t.Target.GetID(), t.Event, ctx); err != nil {
+			return nil, errors.Wrap(err, "action execution failed")
+		}
+	}
+
+	return t.Target, nil
+}
+
 // StateMachineImpl is the implementation of StateMachine
 type StateMachineImpl[S comparable, E comparable, C any] struct {
-	id          string
-	transitions map[S]map[E][]*Transition[S, E, C]
-	mutex       sync.RWMutex
+	id       string
+	stateMap map[S]*State[S, E, C]
+	ready    bool
+	mutex    sync.RWMutex
 }
 
 // NewStateMachine creates a new state machine
 func NewStateMachine[S comparable, E comparable, C any](id string) *StateMachineImpl[S, E, C] {
 	return &StateMachineImpl[S, E, C]{
-		id:          id,
-		transitions: make(map[S]map[E][]*Transition[S, E, C]),
+		id:       id,
+		stateMap: make(map[S]*State[S, E, C]),
+		ready:    false,
 	}
 }
 
 // FireEvent triggers a state transition based on the current state and event
-func (sm *StateMachineImpl[S, E, C]) FireEvent(sourceState S, event E, ctx C) (S, error) {
+func (sm *StateMachineImpl[S, E, C]) FireEvent(sourceStateId S, event E, ctx C) (S, error) {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
-	// Check if the source state exists
-	eventMap, ok := sm.transitions[sourceState]
+	if !sm.ready {
+		var zeroState S
+		return zeroState, errors.New("state machine is not built yet")
+	}
+
+	// Get source state
+	sourceState, ok := sm.stateMap[sourceStateId]
 	if !ok {
 		var zeroState S
-		return zeroState, errors.Errorf("state not found: %v", sourceState)
+		return zeroState, errors.Errorf("state not found: %v", sourceStateId)
 	}
 
-	// Check if there are transitions for the given event
-	transitions, ok := eventMap[event]
-	if !ok || len(transitions) == 0 {
+	// Get transitions for the event
+	transitions := sourceState.GetEventTransitions(event)
+	if transitions == nil || len(transitions) == 0 {
 		var zeroState S
-		return zeroState, errors.Errorf("no transition found for event %v from state %v", event, sourceState)
+		return zeroState, errors.Errorf("no transition found for event %v from state %v", event, sourceStateId)
 	}
 
-	// Find the first transition with satisfied conditions
+	// Find the first transition with satisfied condition
 	for _, transition := range transitions {
-		// Check all conditions
-		conditionsMet := true
-		for _, condition := range transition.Conditions {
-			if !condition.IsSatisfied(ctx) {
-				conditionsMet = false
-				break
-			}
+		targetState, err := transition.Transit(ctx, true)
+		if err != nil {
+			var zeroState S
+			return zeroState, err
 		}
 
-		if conditionsMet {
-			// Execute all actions
-			for _, action := range transition.Actions {
-				if err := action.Execute(sourceState, transition.Target, event, ctx); err != nil {
-					var zeroState S
-					return zeroState, errors.Wrap(err, "action execution failed")
-				}
-			}
-
-			// Return the target state
-			return transition.Target, nil
+		if targetState != sourceState { // Transition occurred
+			return targetState.GetID(), nil
 		}
 	}
 
 	// No transition with satisfied conditions found
 	var zeroState S
-	return zeroState, errors.Errorf("no transition conditions met for event %v from state %v", event, sourceState)
+	return zeroState, errors.Errorf("no transition conditions met for event %v from state %v", event, sourceStateId)
 }
 
-// RegisterTransition registers a transition in the state machine
-func (sm *StateMachineImpl[S, E, C]) RegisterTransition(transition *Transition[S, E, C]) error {
+// GetState returns a state by ID, creating it if it doesn't exist
+func (sm *StateMachineImpl[S, E, C]) GetState(stateId S) *State[S, E, C] {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	// Initialize maps if they don't exist
-	if _, ok := sm.transitions[transition.Source]; !ok {
-		sm.transitions[transition.Source] = make(map[E][]*Transition[S, E, C])
+	if state, ok := sm.stateMap[stateId]; ok {
+		return state
 	}
 
-	// Add the transition
-	sm.transitions[transition.Source][transition.Event] = append(
-		sm.transitions[transition.Source][transition.Event],
-		transition,
-	)
+	state := NewState[S, E, C](stateId)
+	sm.stateMap[stateId] = state
+	return state
+}
 
-	return nil
+// SetReady marks the state machine as ready
+func (sm *StateMachineImpl[S, E, C]) SetReady(ready bool) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.ready = ready
 }
 
 // ShowStateMachine returns a string representation of the state machine
@@ -143,15 +201,21 @@ func (sm *StateMachineImpl[S, E, C]) ShowStateMachine() string {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
-	result := fmt.Sprintf("StateMachine: %s\n", sm.id)
-	for source, eventMap := range sm.transitions {
-		result += fmt.Sprintf("  State: %v\n", source)
-		for event, transitions := range eventMap {
+	result := fmt.Sprintf("StateMachine(id=%s):\n", sm.id)
+
+	for _, state := range sm.stateMap {
+		for event, transitions := range state.eventTransitions {
 			for _, transition := range transitions {
-				result += fmt.Sprintf("    Event: %v -> State: %v\n", event, transition.Target)
+				transType := "EXTERNAL"
+				if transition.TransType == Internal {
+					transType = "INTERNAL"
+				}
+				result += fmt.Sprintf("  %v --%v(%s)--> %v\n",
+					transition.Source.GetID(), event, transType, transition.Target.GetID())
 			}
 		}
 	}
+
 	return result
 }
 
@@ -161,20 +225,19 @@ func (sm *StateMachineImpl[S, E, C]) GeneratePlantUML() string {
 	defer sm.mutex.RUnlock()
 
 	result := "@startuml\n"
-	result += fmt.Sprintf("title State Machine: %s\n", sm.id)
-	result += "\n"
+	result += fmt.Sprintf("title StateMachine: %s\n", sm.id)
 
 	// Define states
-	for source := range sm.transitions {
-		result += fmt.Sprintf("state \"%v\" as %v\n", source, source)
+	for stateId := range sm.stateMap {
+		result += fmt.Sprintf("state \"%v\" as %v\n", stateId, stateId)
 	}
-	result += "\n"
 
 	// Define transitions
-	for source, eventMap := range sm.transitions {
-		for event, transitions := range eventMap {
+	for _, state := range sm.stateMap {
+		for event, transitions := range state.eventTransitions {
 			for _, transition := range transitions {
-				result += fmt.Sprintf("%v --> %v : %v\n", source, transition.Target, event)
+				result += fmt.Sprintf("%v --> %v : %v\n",
+					transition.Source.GetID(), transition.Target.GetID(), event)
 			}
 		}
 	}
