@@ -301,7 +301,7 @@ func TestGameStateMachine(t *testing.T) {
 		// Generate diagrams
 		plantUML := stateMachine.GenerateDiagram(fsm.PlantUML)
 		markdown := stateMachine.GenerateDiagram(fsm.MarkdownTable)
-		flow := stateMachine.GenerateDiagram(fsm.MarkdownFlow)
+		flow := stateMachine.GenerateDiagram(fsm.MarkdownFlowchart)
 
 		if plantUML == "" || markdown == "" || flow == "" {
 			t.Error("Expected non-empty diagrams")

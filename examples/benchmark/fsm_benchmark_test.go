@@ -56,10 +56,17 @@ func BenchmarkDiagramGeneration(b *testing.B) {
 		}
 	})
 
-	b.Run("MarkdownFlow", func(b *testing.B) {
+	b.Run("MarkdownFlowchart", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_ = stateMachine.GenerateDiagram(fsm.MarkdownFlow)
+			_ = stateMachine.GenerateDiagram(fsm.MarkdownFlowchart)
+		}
+	})
+
+	b.Run("MarkdownStateDiagram", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = stateMachine.GenerateDiagram(fsm.MarkdownStateDiagram)
 		}
 	})
 
@@ -67,7 +74,7 @@ func BenchmarkDiagramGeneration(b *testing.B) {
 	b.Run("AllFormats", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_ = stateMachine.GenerateDiagram(fsm.PlantUML, fsm.MarkdownTable, fsm.MarkdownFlow)
+			_ = stateMachine.GenerateDiagram(fsm.PlantUML, fsm.MarkdownTable, fsm.MarkdownFlowchart, fsm.MarkdownStateDiagram)
 		}
 	})
 }

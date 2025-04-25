@@ -261,11 +261,12 @@ func TestApprovalWorkflow(t *testing.T) {
 	// Test visualization
 	t.Run("Visualization", func(t *testing.T) {
 		// Generate all diagram formats
-		diagrams := stateMachine.GenerateDiagram(fsm.PlantUML, fsm.MarkdownTable, fsm.MarkdownFlow)
+		diagrams := stateMachine.GenerateDiagram(fsm.PlantUML, fsm.MarkdownTable, fsm.MarkdownFlowchart, fsm.MarkdownStateDiagram)
 		if diagrams == "" {
 			t.Error("Expected non-empty diagrams")
 		}
 
 		t.Logf("Generated %d characters of combined diagrams", len(diagrams))
+		t.Log(diagrams)
 	})
 }

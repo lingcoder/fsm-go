@@ -243,8 +243,8 @@ func TestVisualization(t *testing.T) {
 	})
 
 	// Test Markdown flow
-	t.Run("MarkdownFlow", func(t *testing.T) {
-		diagram := stateMachine.GenerateDiagram(fsm.MarkdownFlow)
+	t.Run("MarkdownFlowchart", func(t *testing.T) {
+		diagram := stateMachine.GenerateDiagram(fsm.MarkdownFlowchart)
 		if diagram == "" {
 			t.Error("Expected non-empty diagram")
 		}

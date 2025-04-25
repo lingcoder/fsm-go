@@ -41,8 +41,10 @@ const (
 	PlantUML DiagramFormat = iota
 	// MarkdownTable format for tabular representation
 	MarkdownTable
-	// MarkdownFlow format for flowcharts
-	MarkdownFlow
+	// MarkdownFlowchart format for flowcharts
+	MarkdownFlowchart
+	// MarkdownStateDiagram format for Mermaid state diagrams
+	MarkdownStateDiagram
 )
 
 // State represents a state in the state machine
@@ -355,8 +357,10 @@ func (sm *StateMachineImpl[S, E, C]) GenerateDiagram(formats ...DiagramFormat) s
 		switch format {
 		case MarkdownTable:
 			result.WriteString(sm.generateMarkdownTable())
-		case MarkdownFlow:
+		case MarkdownFlowchart:
 			result.WriteString(sm.generateMarkdownFlow())
+		case MarkdownStateDiagram:
+			result.WriteString(sm.generateMarkdownStateDiagram())
 		case PlantUML:
 			result.WriteString(sm.generatePlantUML())
 		default:
@@ -475,6 +479,33 @@ func (sm *StateMachineImpl[S, E, C]) generateMarkdownFlow() string {
 	return sb.String()
 }
 
+// generateMarkdownStateDiagram returns a Mermaid state diagram in Markdown format
+func (sm *StateMachineImpl[S, E, C]) generateMarkdownStateDiagram() string {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	var sb strings.Builder
+	sb.WriteString("```mermaid\nstateDiagram-v2\n")
+
+	// Define states
+	for stateId := range sm.stateMap {
+		sb.WriteString(fmt.Sprintf("    state \"%v\"\n", stateId))
+	}
+
+	// Define transitions
+	for _, state := range sm.stateMap {
+		for _, transitions := range state.eventTransitions {
+			for _, transition := range transitions {
+				sb.WriteString(fmt.Sprintf("    [%v] --> [%v] : %v\n",
+					transition.Source.id, transition.Target.id, transition.Event))
+			}
+		}
+	}
+
+	sb.WriteString("```\n")
+	return sb.String()
+}
+
 // GeneratePlantUML returns a PlantUML diagram of the state machine
 // Deprecated: Use GenerateDiagram(PlantUML) or GenerateDiagram() instead
 func (sm *StateMachineImpl[S, E, C]) GeneratePlantUML() string {
@@ -488,7 +519,7 @@ func (sm *StateMachineImpl[S, E, C]) GenerateMarkdown() string {
 }
 
 // GenerateMarkdownFlowchart returns a Mermaid flowchart diagram in Markdown format
-// Deprecated: Use GenerateDiagram(MarkdownFlow) instead
+// Deprecated: Use GenerateDiagram(MarkdownFlowchart) instead
 func (sm *StateMachineImpl[S, E, C]) GenerateMarkdownFlowchart() string {
-	return sm.GenerateDiagram(MarkdownFlow)
+	return sm.GenerateDiagram(MarkdownFlowchart)
 }
