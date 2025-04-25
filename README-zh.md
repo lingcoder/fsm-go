@@ -113,6 +113,7 @@ func main() {
 	
 	fmt.Printf("新状态: %v\n", newState)
 }
+```
 
 ## 核心概念
 
@@ -149,18 +150,16 @@ FSM-Go 提供一种统一的方式来可视化状态机：
 ```go
 // 默认格式 (PlantUML)
 plantUML := stateMachine.GenerateDiagram()
+fmt.Println(plantUML)
+// 生成 Markdown 表格、流程图和 Mermaid 状态图
+table := stateMachine.GenerateDiagram(fsm.MarkdownTable)     // Markdown table format
+fmt.Println(table)
+flow := stateMachine.GenerateDiagram(fsm.MarkdownFlow)       // Markdown flow chart format
+fmt.Println(flow)
 
-// 生成特定格式
-table := stateMachine.GenerateDiagram(fsm.MarkdownTable)     // Markdown 表格格式
-flow := stateMachine.GenerateDiagram(fsm.MarkdownFlow)       // Markdown 流程图格式
-
-// 生成多种格式
-combined := stateMachine.GenerateDiagram(fsm.PlantUML, fsm.MarkdownTable, fsm.MarkdownFlow)
-
-// 为向后兼容，这些方法仍然可用但已弃用
-plantUML = stateMachine.GeneratePlantUML()
-table = stateMachine.GenerateMarkdown()
-flow = stateMachine.GenerateMarkdownFlowchart()
+// Generate multiple formats separately
+diagrams := stateMachine.GenerateDiagram(fsm.PlantUML, fsm.MarkdownTable, fsm.MarkdownFlowchart, fsm.MarkdownStateDiagram)
+fmt.Println(diagrams)
 ```
 
 ## 许可证

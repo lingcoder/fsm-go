@@ -152,18 +152,17 @@ FSM-Go provides a unified way to visualize your state machine with different for
 ```go
 // Default format (PlantUML)
 plantUML := stateMachine.GenerateDiagram()
-
+fmt.Println(plantUML)
 // Generate specific format
 table := stateMachine.GenerateDiagram(fsm.MarkdownTable)     // Markdown table format
+fmt.Println(table)
+
 flow := stateMachine.GenerateDiagram(fsm.MarkdownFlow)       // Markdown flow chart format
+fmt.Println(flow)
 
-// Generate multiple formats at once
-combined := stateMachine.GenerateDiagram(fsm.PlantUML, fsm.MarkdownTable, fsm.MarkdownFlow)
-
-// For backward compatibility, these methods are still available but deprecated
-plantUML = stateMachine.GeneratePlantUML()
-table = stateMachine.GenerateMarkdown()
-flow = stateMachine.GenerateMarkdownFlowchart()
+// Generate multiple formats separately
+diagrams := stateMachine.GenerateDiagram(fsm.PlantUML, fsm.MarkdownTable, fsm.MarkdownFlowchart, fsm.MarkdownStateDiagram)
+fmt.Println(diagrams)
 ```
 
 ## License
