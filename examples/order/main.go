@@ -2,147 +2,148 @@ package main
 
 import (
 	"fmt"
-	"github.com/lingcoder/fsm-go"
 	"log"
+
+	"github.com/lingcoder/fsm-go"
 )
 
-// Define states
+// Order states
 type OrderState string
 
 const (
-	OrderCreated   OrderState = "CREATED"
-	OrderPaid      OrderState = "PAID"
-	OrderShipped   OrderState = "SHIPPED"
-	OrderDelivered OrderState = "DELIVERED"
-	OrderCancelled OrderState = "CANCELLED"
-	OrderRefunded  OrderState = "REFUNDED"
+	Created   OrderState = "CREATED"
+	Paid      OrderState = "PAID"
+	Delivered OrderState = "DELIVERED"
+	Cancelled OrderState = "CANCELLED"
+	Finished  OrderState = "FINISHED"
+	Notified  OrderState = "NOTIFIED" // New notification state for parallel transition demo
 )
 
-// Define events
+// Order events
 type OrderEvent string
 
 const (
-	EventPay     OrderEvent = "PAY"
-	EventShip    OrderEvent = "SHIP"
-	EventDeliver OrderEvent = "DELIVER"
-	EventCancel  OrderEvent = "CANCEL"
-	EventRefund  OrderEvent = "REFUND"
+	Pay     OrderEvent = "PAY"
+	Deliver OrderEvent = "DELIVER"
+	Cancel  OrderEvent = "CANCEL"
+	Confirm OrderEvent = "CONFIRM"
+	Process OrderEvent = "PROCESS" // New process event for parallel transition demo
 )
 
-// Define context
+// Order context
 type OrderContext struct {
-	OrderID   string
-	UserID    string
-	Amount    float64
-	Timestamp int64
-}
-
-// Define action
-type OrderAction struct{}
-
-func (a *OrderAction) Execute(from OrderState, to OrderState, event OrderEvent, ctx OrderContext) error {
-	fmt.Printf("Order %s transitioning from %s to %s on event %s\n",
-		ctx.OrderID, from, to, event)
-
-	// Perform business logic based on the transition
-	// For example, update database, send notifications, etc.
-	return nil
-}
-
-// Define condition
-type OrderCondition struct{}
-
-func (c *OrderCondition) IsSatisfied(ctx OrderContext) bool {
-	// Add your condition logic here
-	// For example, check if order amount is valid, user has permission, etc.
-	return true
-}
-
-// Define a more specific condition for cancellation
-type CancellationCondition struct{}
-
-func (c *CancellationCondition) IsSatisfied(ctx OrderContext) bool {
-	// Only allow cancellation for orders with amount less than 1000
-	return ctx.Amount < 1000
+	OrderId string
+	Amount  float64
+	User    string
 }
 
 func main() {
-	// Create a builder
+	// Create state machine builder
 	builder := fsm.NewStateMachineBuilder[OrderState, OrderEvent, OrderContext]()
 
-	// Define the state machine
+	// Using function types for conditions and actions
+	// From Created to Paid
 	builder.ExternalTransition().
-		From(OrderCreated).
-		To(OrderPaid).
-		On(EventPay).
-		When(&OrderCondition{}).
-		Perform(&OrderAction{})
+		From(Created).
+		To(Paid).
+		On(Pay).
+		WhenFunc(func(ctx OrderContext) bool {
+			return ctx.Amount > 0
+		}).
+		PerformFunc(func(from, to OrderState, event OrderEvent, ctx OrderContext) error {
+			fmt.Printf("Order %s paid amount %.2f\n", ctx.OrderId, ctx.Amount)
+			return nil
+		})
 
+	// From Paid to Delivered
 	builder.ExternalTransition().
-		From(OrderPaid).
-		To(OrderShipped).
-		On(EventShip).
-		When(&OrderCondition{}).
-		Perform(&OrderAction{})
+		From(Paid).
+		To(Delivered).
+		On(Deliver).
+		PerformFunc(func(from, to OrderState, event OrderEvent, ctx OrderContext) error {
+			fmt.Printf("Order %s has been delivered\n", ctx.OrderId)
+			return nil
+		})
 
+	// From Delivered to Finished
 	builder.ExternalTransition().
-		From(OrderShipped).
-		To(OrderDelivered).
-		On(EventDeliver).
-		When(&OrderCondition{}).
-		Perform(&OrderAction{})
+		From(Delivered).
+		To(Finished).
+		On(Confirm).
+		PerformFunc(func(from, to OrderState, event OrderEvent, ctx OrderContext) error {
+			fmt.Printf("Order %s has been completed\n", ctx.OrderId)
+			return nil
+		})
 
-	// Multiple source states can transition to cancelled
+	// Demonstrate parallel transition: from Paid to both Delivered and Notified
+	builder.ExternalParallelTransition().
+		From(Paid).
+		ToAmong(Delivered, Notified).
+		On(Process).
+		PerformFunc(func(from, to OrderState, event OrderEvent, ctx OrderContext) error {
+			fmt.Printf("Processing order %s to %s state\n", ctx.OrderId, to)
+			return nil
+		})
+
+	// Demonstrate multiple transitions: from multiple states to Cancelled
 	builder.ExternalTransitions().
-		FromAmong(OrderCreated, OrderPaid).
-		To(OrderCancelled).
-		On(EventCancel).
-		When(&CancellationCondition{}).
-		Perform(&OrderAction{})
-
-	// Refund can only happen from cancelled state
-	builder.ExternalTransition().
-		From(OrderCancelled).
-		To(OrderRefunded).
-		On(EventRefund).
-		When(&OrderCondition{}).
-		Perform(&OrderAction{})
+		FromAmong(Created, Paid, Delivered).
+		To(Cancelled).
+		On(Cancel).
+		PerformFunc(func(from, to OrderState, event OrderEvent, ctx OrderContext) error {
+			fmt.Printf("Order %s cancelled from %s state\n", ctx.OrderId, from)
+			return nil
+		})
 
 	// Build the state machine
-	stateMachine, _ := builder.Build("OrderStateMachine")
+	stateMachine, err := builder.Build("OrderStateMachine")
+	if err != nil {
+		log.Fatalf("Failed to build state machine: %v", err)
+	}
 
-	// Print the state machine structure
+	// Create order context
+	ctx := OrderContext{
+		OrderId: "ORD-20250425-001",
+		Amount:  199.99,
+		User:    "John Doe",
+	}
+
+	// Demonstrate verification feature
+	fmt.Println("\n=== Verification Demo ===")
+	fmt.Printf("Can trigger Pay event from Created state? %v\n", stateMachine.Verify(Created, Pay))
+	fmt.Printf("Can trigger Deliver event from Created state? %v\n", stateMachine.Verify(Created, Deliver))
+
+	// Demonstrate normal transition
+	fmt.Println("\n=== Normal Transition Demo ===")
+	newState, err := stateMachine.FireEvent(Created, Pay, ctx)
+	if err != nil {
+		log.Fatalf("Transition failed: %v", err)
+	}
+	fmt.Printf("New state: %v\n", newState)
+
+	// Demonstrate parallel transition
+	fmt.Println("\n=== Parallel Transition Demo ===")
+	newStates, err := stateMachine.FireParallelEvent(Paid, Process, ctx)
+	if err != nil {
+		log.Fatalf("Parallel transition failed: %v", err)
+	}
+	fmt.Printf("States after parallel transition: %v\n", newStates)
+
+	// Demonstrate multiple transition
+	fmt.Println("\n=== Multiple Transition Demo ===")
+	ctx.OrderId = "ORD-20250425-002" // New order
+	// From Created to Cancelled
+	newState, err = stateMachine.FireEvent(Created, Cancel, ctx)
+	if err != nil {
+		log.Fatalf("Multiple transition failed: %v", err)
+	}
+	fmt.Printf("State after multiple transition: %v\n", newState)
+
+	// Print state machine diagram
+	fmt.Println("\n=== State Machine Diagram ===")
 	fmt.Println(stateMachine.ShowStateMachine())
 
-	// Use the state machine
-	ctx := OrderContext{
-		OrderID:   "ORD-001",
-		UserID:    "USR-001",
-		Amount:    100.0,
-		Timestamp: 1619712000,
-	}
-
-	// Transition from CREATED to PAID
-	newState, err := stateMachine.FireEvent(OrderCreated, EventPay, ctx)
-	if err != nil {
-		log.Fatalf("Failed to transition: %v", err)
-	}
-	fmt.Printf("New state: %v\n", newState)
-
-	// Transition from PAID to SHIPPED
-	newState, err = stateMachine.FireEvent(OrderPaid, EventShip, ctx)
-	if err != nil {
-		log.Fatalf("Failed to transition: %v", err)
-	}
-	fmt.Printf("New state: %v\n", newState)
-
-	// Try to cancel a shipped order (should fail as we only defined cancellation for CREATED and PAID)
-	newState, err = stateMachine.FireEvent(OrderShipped, EventCancel, ctx)
-	if err != nil {
-		fmt.Printf("Expected error: %v\n", err)
-	}
-
 	// Generate PlantUML diagram
-	fmt.Println("\nPlantUML Diagram:")
+	fmt.Println("\n=== PlantUML Diagram ===")
 	fmt.Println(stateMachine.GeneratePlantUML())
 }

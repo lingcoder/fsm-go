@@ -152,7 +152,7 @@ func (t *Transition[S, E, C]) Transit(ctx C, checkCondition bool) (*State[S, E, 
 	return t.Target, nil
 }
 
-// StateMachineImpl is the implementation of StateMachine
+// StateMachineImpl implements the StateMachine interface
 type StateMachineImpl[S comparable, E comparable, C any] struct {
 	id       string
 	stateMap map[S]*State[S, E, C]
@@ -195,18 +195,16 @@ func (sm *StateMachineImpl[S, E, C]) FireEvent(sourceStateId S, event E, ctx C) 
 
 	// Find the first transition with satisfied condition
 	for _, transition := range transitions {
-		targetState, err := transition.Transit(ctx, true)
-		if err != nil {
-			var zeroState S
-			return zeroState, err
-		}
-
-		if targetState != sourceState { // Transition occurred
+		if transition.Condition == nil || transition.Condition.IsSatisfied(ctx) {
+			targetState, err := transition.Transit(ctx, true)
+			if err != nil {
+				var zeroState S
+				return zeroState, err
+			}
 			return targetState.GetID(), nil
 		}
 	}
 
-	// No transition with satisfied conditions found
 	var zeroState S
 	return zeroState, errors.Errorf("no transition conditions met for event %v from state %v", event, sourceStateId)
 }
