@@ -2,7 +2,8 @@ package fsm
 
 // StateMachineBuilder builds state machines with a fluent API
 type StateMachineBuilder[S comparable, E comparable, C any] struct {
-	stateMachine *StateMachineImpl[S, E, C]
+	stateMachine       *StateMachineImpl[S, E, C]
+	pendingTransitions []*Transition[S, E, C]
 }
 
 // NewStateMachineBuilder creates a new builder
@@ -11,7 +12,8 @@ type StateMachineBuilder[S comparable, E comparable, C any] struct {
 //	A new state machine builder instance
 func NewStateMachineBuilder[S comparable, E comparable, C any]() *StateMachineBuilder[S, E, C] {
 	return &StateMachineBuilder[S, E, C]{
-		stateMachine: NewStateMachine[S, E, C](""),
+		stateMachine:       NewStateMachine[S, E, C](""),
+		pendingTransitions: make([]*Transition[S, E, C], 0),
 	}
 }
 
@@ -23,6 +25,7 @@ func (b *StateMachineBuilder[S, E, C]) ExternalTransition() *TransitionBuilder[S
 	return &TransitionBuilder[S, E, C]{
 		stateMachine:   b.stateMachine,
 		transitionType: External,
+		builder:        b,
 	}
 }
 
@@ -34,6 +37,7 @@ func (b *StateMachineBuilder[S, E, C]) InternalTransition() *TransitionBuilder[S
 	return &TransitionBuilder[S, E, C]{
 		stateMachine:   b.stateMachine,
 		transitionType: Internal,
+		builder:        b,
 	}
 }
 
@@ -45,6 +49,7 @@ func (b *StateMachineBuilder[S, E, C]) ExternalTransitions() *MultipleTransition
 	return &MultipleTransitionBuilder[S, E, C]{
 		stateMachine:   b.stateMachine,
 		transitionType: External,
+		builder:        b,
 	}
 }
 
@@ -58,6 +63,15 @@ func (b *StateMachineBuilder[S, E, C]) ExternalTransitions() *MultipleTransition
 //	The built state machine and possible error
 func (b *StateMachineBuilder[S, E, C]) Build(machineId string) (StateMachine[S, E, C], error) {
 	b.stateMachine.id = machineId
+
+	// Register all pending transitions
+	for _, transition := range b.pendingTransitions {
+		err := b.stateMachine.RegisterTransition(transition)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Register the state machine in a factory
 	err := RegisterStateMachine[S, E, C](machineId, b.stateMachine)
 	if err != nil {
@@ -75,6 +89,7 @@ type TransitionBuilder[S comparable, E comparable, C any] struct {
 	event          E
 	conditions     []Condition[C]
 	actions        []Action[S, E, C]
+	builder        *StateMachineBuilder[S, E, C]
 }
 
 // From specifies the source state
@@ -139,15 +154,8 @@ func (b *TransitionBuilder[S, E, C]) When(condition Condition[C]) *TransitionBui
 //	The transition builder for method chaining
 func (b *TransitionBuilder[S, E, C]) Perform(action Action[S, E, C]) *TransitionBuilder[S, E, C] {
 	b.actions = append(b.actions, action)
-	return b
-}
 
-// Register registers the transition in the state machine
-// Returns:
-//
-//	Error if registration fails
-func (b *TransitionBuilder[S, E, C]) Register() error {
-	// Create and register the transition
+	// Create the transition and add to pending transitions
 	transition := &Transition[S, E, C]{
 		Source:     b.source,
 		Target:     b.target,
@@ -156,11 +164,10 @@ func (b *TransitionBuilder[S, E, C]) Register() error {
 		Actions:    b.actions,
 		TransType:  b.transitionType,
 	}
-	err := b.stateMachine.RegisterTransition(transition)
-	if err != nil {
-		return err
-	}
-	return nil
+
+	// Add to pending transitions
+	b.builder.pendingTransitions = append(b.builder.pendingTransitions, transition)
+	return b
 }
 
 // MultipleTransitionBuilder builds transitions from multiple source states
@@ -172,6 +179,7 @@ type MultipleTransitionBuilder[S comparable, E comparable, C any] struct {
 	event          E
 	conditions     []Condition[C]
 	actions        []Action[S, E, C]
+	builder        *StateMachineBuilder[S, E, C]
 }
 
 // FromAmong specifies multiple source states
@@ -236,15 +244,8 @@ func (b *MultipleTransitionBuilder[S, E, C]) When(condition Condition[C]) *Multi
 //	The multiple transition builder for method chaining
 func (b *MultipleTransitionBuilder[S, E, C]) Perform(action Action[S, E, C]) *MultipleTransitionBuilder[S, E, C] {
 	b.actions = append(b.actions, action)
-	return b
-}
 
-// Register registers all transitions in the state machine
-// Returns:
-//
-//	Error if registration fails
-func (b *MultipleTransitionBuilder[S, E, C]) Register() error {
-	// Create and register transitions for each source state
+	// Create transitions for each source state
 	for _, source := range b.sources {
 		transition := &Transition[S, E, C]{
 			Source:     source,
@@ -254,10 +255,9 @@ func (b *MultipleTransitionBuilder[S, E, C]) Register() error {
 			Actions:    b.actions,
 			TransType:  b.transitionType,
 		}
-		err := b.stateMachine.RegisterTransition(transition)
-		if err != nil {
-			return err
-		}
+
+		// Add to pending transitions
+		b.builder.pendingTransitions = append(b.builder.pendingTransitions, transition)
 	}
-	return nil
+	return b
 }

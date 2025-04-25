@@ -113,8 +113,7 @@ func main() {
 		From(MainMenu).
 		To(Loading).
 		On(StartGame).
-		Perform(&GameStateAction{}).
-		Register()
+		Perform(&GameStateAction{})
 
 	// From loading to playing
 	builder.ExternalTransition().
@@ -122,80 +121,70 @@ func main() {
 		To(Playing).
 		On(StartGame).
 		When(&ResourceLoadedCondition{}).
-		Perform(&GameStateAction{}).
-		Register()
+		Perform(&GameStateAction{})
 
 	// From playing to paused
 	builder.ExternalTransition().
 		From(Playing).
 		To(Paused).
 		On(PauseGame).
-		Perform(&GameStateAction{}).
-		Register()
+		Perform(&GameStateAction{})
 
 	// From paused to playing
 	builder.ExternalTransition().
 		From(Paused).
 		To(Playing).
 		On(ResumeGame).
-		Perform(&GameStateAction{}).
-		Register()
+		Perform(&GameStateAction{})
 
 	// From playing to game over
 	builder.ExternalTransition().
 		From(Playing).
 		To(GameOver).
 		On(PlayerDied).
-		Perform(&GameOverAction{}).
-		Register()
+		Perform(&GameOverAction{})
 
 	// From playing to victory
 	builder.ExternalTransition().
 		From(Playing).
 		To(Victory).
 		On(LevelComplete).
-		Perform(&VictoryAction{}).
-		Register()
+		Perform(&VictoryAction{})
 
 	// From playing to settings
 	builder.ExternalTransition().
 		From(Playing).
 		To(Settings).
 		On(OpenSettings).
-		Perform(&GameStateAction{}).
-		Register()
+		Perform(&GameStateAction{})
 
 	// From settings to playing
 	builder.ExternalTransition().
 		From(Settings).
 		To(Playing).
 		On(CloseSettings).
-		Perform(&GameStateAction{}).
-		Register()
+		Perform(&GameStateAction{})
 
 	// From playing to inventory
 	builder.ExternalTransition().
 		From(Playing).
 		To(Inventory).
 		On(OpenInventory).
-		Perform(&GameStateAction{}).
-		Register()
+		Perform(&GameStateAction{})
 
 	// From inventory to playing
 	builder.ExternalTransition().
 		From(Inventory).
 		To(Playing).
 		On(CloseInventory).
-		Perform(&GameStateAction{}).
-		Register()
+		Perform(&GameStateAction{})
 
 	// Multiple states can return to main menu
 	builder.ExternalTransitions().
 		FromAmong(Paused, GameOver, Victory, Settings).
 		To(MainMenu).
 		On(ReturnToMenu).
-		Perform(&GameStateAction{}).
-		Register()
+		Perform(&GameStateAction{})
 
 	// Build the state machine
 	sm, err := builder.Build("GameStateMachine")

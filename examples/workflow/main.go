@@ -81,8 +81,7 @@ func main() {
 		To(Submitted).
 		On(Submit).
 		When(&SubmitCondition{}).
-		Perform(&ApprovalAction{}).
-		Register()
+		Perform(&ApprovalAction{})
 
 	// From Submitted to InReview
 	builder.ExternalTransition().
@@ -90,8 +89,7 @@ func main() {
 		To(InReview).
 		On(Review).
 		When(&ReviewerCondition{}).
-		Perform(&ApprovalAction{}).
-		Register()
+		Perform(&ApprovalAction{})
 
 	// From InReview to Approved
 	builder.ExternalTransition().
@@ -99,8 +97,7 @@ func main() {
 		To(Approved).
 		On(Approve).
 		When(&ReviewerCondition{}).
-		Perform(&ApprovalAction{}).
-		Register()
+		Perform(&ApprovalAction{})
 
 	// From InReview to Rejected
 	builder.ExternalTransition().
@@ -108,8 +105,7 @@ func main() {
 		To(Rejected).
 		On(Reject).
 		When(&ReviewerCondition{}).
-		Perform(&ApprovalAction{}).
-		Register()
+		Perform(&ApprovalAction{})
 
 	// From Rejected to Submitted (resubmission)
 	builder.ExternalTransition().
@@ -117,16 +113,14 @@ func main() {
 		To(Submitted).
 		On(Resubmit).
 		When(&SubmitCondition{}).
-		Perform(&ApprovalAction{}).
-		Register()
+		Perform(&ApprovalAction{})
 
 	// Multiple states can be cancelled
 	builder.ExternalTransitions().
 		FromAmong(Draft, Submitted, InReview).
 		To(Cancelled).
 		On(Cancel).
-		Perform(&ApprovalAction{}).
-		Register()
+		Perform(&ApprovalAction{})
 
 	// Build the state machine
 	sm, err := builder.Build("ApprovalWorkflow")

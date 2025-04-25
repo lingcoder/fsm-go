@@ -76,24 +76,21 @@ func main() {
 		To(OrderPaid).
 		On(EventPay).
 		When(&OrderCondition{}).
-		Perform(&OrderAction{}).
-		Register()
+		Perform(&OrderAction{})
 
 	builder.ExternalTransition().
 		From(OrderPaid).
 		To(OrderShipped).
 		On(EventShip).
 		When(&OrderCondition{}).
-		Perform(&OrderAction{}).
-		Register()
+		Perform(&OrderAction{})
 
 	builder.ExternalTransition().
 		From(OrderShipped).
 		To(OrderDelivered).
 		On(EventDeliver).
 		When(&OrderCondition{}).
-		Perform(&OrderAction{}).
-		Register()
+		Perform(&OrderAction{})
 
 	// Multiple source states can transition to cancelled
 	builder.ExternalTransitions().
@@ -101,8 +98,7 @@ func main() {
 		To(OrderCancelled).
 		On(EventCancel).
 		When(&CancellationCondition{}).
-		Perform(&OrderAction{}).
-		Register()
+		Perform(&OrderAction{})
 
 	// Refund can only happen from cancelled state
 	builder.ExternalTransition().
@@ -110,8 +106,7 @@ func main() {
 		To(OrderRefunded).
 		On(EventRefund).
 		When(&OrderCondition{}).
-		Perform(&OrderAction{}).
-		Register()
+		Perform(&OrderAction{})
 
 	// Build the state machine
 	stateMachine, _ := builder.Build("OrderStateMachine")
