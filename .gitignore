@@ -105,3 +105,9 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
+### Editor backup files
+*~
+*.go~
+*.bak
+*.swp
+.*.swp
