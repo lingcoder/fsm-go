@@ -170,7 +170,7 @@ fmt.Println(plantUML)
 table := stateMachine.GenerateDiagram(fsm.MarkdownTable)     // Markdown 表格格式
 fmt.Println(table)
 
-flow := stateMachine.GenerateDiagram(fsm.MarkdownFlow)       // Markdown 流程图格式
+flow := stateMachine.GenerateDiagram(fsm.MarkdownFlowchart)  // Markdown 流程图格式
 fmt.Println(flow)
 
 // 分别生成多种格式

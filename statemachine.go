@@ -264,7 +264,7 @@ func (sm *StateMachineImpl[S, E, C]) FireParallelEvent(sourceStateId S, event E,
 
 	// Then execute all valid transitions
 	for _, transition := range validTransitions {
-		targetState, err := transition.Transit(ctx, false) // Don't check condition again
+		targetState, err := transition.Transit(ctx, false) // Skip condition check as we've already verified it
 		if err != nil {
 			return nil, err
 		}
