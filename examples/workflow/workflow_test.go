@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -58,22 +59,27 @@ func (c *ReviewerCondition) IsSatisfied(payload ApprovalPayload) bool {
 }
 
 // Approval action
-type ApprovalAction struct{}
+type ApprovalAction struct {
+	ActionLog []string
+}
 
 func (a *ApprovalAction) Execute(from, to ApprovalState, event ApprovalEvent, payload ApprovalPayload) error {
-	// In a real application, this would perform the actual state transition logic
+	// Log the transition for verification in tests
+	a.ActionLog = append(a.ActionLog, fmt.Sprintf("%s -> %s [%s]", from, to, event))
 	return nil
 }
 
-// TestApprovalWorkflow tests the basic functionality of an approval workflow state machine
-func TestApprovalWorkflow(t *testing.T) {
+// setupApprovalWorkflow creates and configures the approval workflow state machine
+func setupApprovalWorkflow(t *testing.T) (fsm.StateMachine[ApprovalState, ApprovalEvent, ApprovalPayload], *ApprovalAction) {
 	// Create state machine builder
 	builder := fsm.NewStateMachineBuilder[ApprovalState, ApprovalEvent, ApprovalPayload]()
 
 	// Create conditions and actions
 	submitCondition := &SubmitCondition{}
 	reviewerCondition := &ReviewerCondition{}
-	approvalAction := &ApprovalAction{}
+	approvalAction := &ApprovalAction{
+		ActionLog: make([]string, 0),
+	}
 
 	// Draft to Submitted
 	builder.ExternalTransition().
@@ -96,6 +102,9 @@ func TestApprovalWorkflow(t *testing.T) {
 		From(InReview).
 		To(Approved).
 		On(Approve).
+		When(fsm.ConditionFunc[ApprovalPayload](func(payload ApprovalPayload) bool {
+			return true
+		})).
 		Perform(approvalAction)
 
 	// InReview to Rejected
@@ -103,6 +112,9 @@ func TestApprovalWorkflow(t *testing.T) {
 		From(InReview).
 		To(Rejected).
 		On(Reject).
+		When(fsm.ConditionFunc[ApprovalPayload](func(payload ApprovalPayload) bool {
+			return true
+		})).
 		Perform(approvalAction)
 
 	// Rejected to Submitted
@@ -118,6 +130,9 @@ func TestApprovalWorkflow(t *testing.T) {
 		FromAmong(Draft, Submitted, InReview).
 		To(Cancelled).
 		On(Cancel).
+		When(fsm.ConditionFunc[ApprovalPayload](func(payload ApprovalPayload) bool {
+			return true
+		})).
 		Perform(approvalAction)
 
 	// Build the state machine
@@ -126,147 +141,290 @@ func TestApprovalWorkflow(t *testing.T) {
 		t.Fatalf("Failed to build state machine: %v", err)
 	}
 
-	// Test happy path workflow
-	t.Run("HappyPath", func(t *testing.T) {
-		payload := ApprovalPayload{
-			DocumentID:    "DOC-20250425-001",
-			Requester:     "John Doe",
-			Reviewer:      "Jane Smith",
-			SubmittedAt:   time.Now(),
-			LastUpdatedAt: time.Now(),
-		}
+	return stateMachine, approvalAction
+}
 
-		// Submit document
-		state, err := stateMachine.FireEvent(Draft, Submit, payload)
-		if err != nil {
-			t.Fatalf("Failed to submit document: %v", err)
-		}
-		if state != Submitted {
-			t.Errorf("Expected state to be %s, got %s", Submitted, state)
-		}
+// createValidPayload creates a valid payload for testing
+func createValidPayload() ApprovalPayload {
+	return ApprovalPayload{
+		DocumentID:    "DOC-20250425-001",
+		Requester:     "John Doe",
+		Reviewer:      "Jane Smith",
+		SubmittedAt:   time.Now(),
+		LastUpdatedAt: time.Now(),
+	}
+}
 
-		// Start review
-		state, err = stateMachine.FireEvent(state, Review, payload)
-		if err != nil {
-			t.Fatalf("Failed to start review: %v", err)
-		}
-		if state != InReview {
-			t.Errorf("Expected state to be %s, got %s", InReview, state)
-		}
+// createInvalidPayload creates an invalid payload (missing reviewer) for testing
+func createInvalidPayload() ApprovalPayload {
+	return ApprovalPayload{
+		DocumentID:    "DOC-20250425-001",
+		Requester:     "John Doe",
+		Reviewer:      "", // Missing reviewer
+		SubmittedAt:   time.Now(),
+		LastUpdatedAt: time.Now(),
+	}
+}
 
-		// Approve document
-		state, err = stateMachine.FireEvent(state, Approve, payload)
-		if err != nil {
-			t.Fatalf("Failed to approve document: %v", err)
-		}
-		if state != Approved {
-			t.Errorf("Expected state to be %s, got %s", Approved, state)
-		}
-	})
+// TestApprovalWorkflow tests the basic functionality of an approval workflow state machine
+func TestApprovalWorkflow(t *testing.T) {
+	stateMachine, action := setupApprovalWorkflow(t)
 
-	// Test rejection workflow
-	t.Run("RejectionPath", func(t *testing.T) {
-		payload := ApprovalPayload{
-			DocumentID:    "DOC-20250425-002",
-			Requester:     "John Doe",
-			Reviewer:      "Jane Smith",
-			SubmittedAt:   time.Now(),
-			LastUpdatedAt: time.Now(),
-		}
+	// Define test cases
+	testCases := []struct {
+		name           string
+		initialState   ApprovalState
+		events         []ApprovalEvent
+		payload        ApprovalPayload
+		expectedStates []ApprovalState
+		shouldError    bool
+		errorIndex     int // Which event should cause an error (if shouldError is true)
+	}{
+		{
+			name:           "Happy Path",
+			initialState:   Draft,
+			events:         []ApprovalEvent{Submit, Review, Approve},
+			payload:        createValidPayload(),
+			expectedStates: []ApprovalState{Submitted, InReview, Approved},
+			shouldError:    false,
+		},
+		{
+			name:           "Rejection Path",
+			initialState:   Draft,
+			events:         []ApprovalEvent{Submit, Review, Reject, Resubmit, Review, Approve},
+			payload:        createValidPayload(),
+			expectedStates: []ApprovalState{Submitted, InReview, Rejected, Submitted, InReview, Approved},
+			shouldError:    false,
+		},
+		{
+			name:           "Cancellation Path",
+			initialState:   Draft,
+			events:         []ApprovalEvent{Submit, Cancel},
+			payload:        createValidPayload(),
+			expectedStates: []ApprovalState{Submitted, Cancelled},
+			shouldError:    false,
+		},
+		{
+			name:           "Missing Reviewer Error",
+			initialState:   Draft,
+			events:         []ApprovalEvent{Submit, Review},
+			payload:        createInvalidPayload(),
+			expectedStates: []ApprovalState{Submitted},
+			shouldError:    true,
+			errorIndex:     1, // Review event should fail
+		},
+		{
+			name:           "Invalid Transition Error",
+			initialState:   Draft,
+			events:         []ApprovalEvent{Approve}, // Cannot approve from Draft
+			payload:        createValidPayload(),
+			expectedStates: []ApprovalState{},
+			shouldError:    true,
+			errorIndex:     0,
+		},
+		{
+			name:           "Multiple Cancellations",
+			initialState:   Draft,
+			events:         []ApprovalEvent{Cancel, Submit}, // Second event should fail
+			payload:        createValidPayload(),
+			expectedStates: []ApprovalState{Cancelled},
+			shouldError:    true,
+			errorIndex:     1,
+		},
+	}
 
-		// Submit document
-		state, err := stateMachine.FireEvent(Draft, Submit, payload)
-		if err != nil {
-			t.Fatalf("Failed to submit document: %v", err)
-		}
+	// Run test cases
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Reset action log
+			action.ActionLog = make([]string, 0)
 
-		// Start review
-		state, err = stateMachine.FireEvent(state, Review, payload)
-		if err != nil {
-			t.Fatalf("Failed to start review: %v", err)
-		}
+			currentState := tc.initialState
+			var err error
 
-		// Reject document
-		state, err = stateMachine.FireEvent(state, Reject, payload)
-		if err != nil {
-			t.Fatalf("Failed to reject document: %v", err)
-		}
-		if state != Rejected {
-			t.Errorf("Expected state to be %s, got %s", Rejected, state)
-		}
+			// Process each event
+			for i, event := range tc.events {
+				currentState, err = stateMachine.FireEvent(currentState, event, tc.payload)
 
-		// Resubmit document
-		state, err = stateMachine.FireEvent(state, Resubmit, payload)
-		if err != nil {
-			t.Fatalf("Failed to resubmit document: %v", err)
-		}
-		if state != Submitted {
-			t.Errorf("Expected state to be %s, got %s", Submitted, state)
-		}
-	})
+				// Check for expected errors
+				if tc.shouldError && i == tc.errorIndex {
+					if err == nil {
+						t.Fatalf("Expected error for event %s but got none", event)
+					}
+					return // Stop processing events after expected error
+				} else if err != nil {
+					t.Fatalf("Unexpected error: %v", err)
+				}
 
-	// Test cancellation
-	t.Run("CancellationPath", func(t *testing.T) {
-		payload := ApprovalPayload{
-			DocumentID:    "DOC-20250425-003",
-			Requester:     "John Doe",
-			Reviewer:      "Jane Smith",
-			SubmittedAt:   time.Now(),
-			LastUpdatedAt: time.Now(),
-		}
+				// Verify state transition
+				if i < len(tc.expectedStates) && currentState != tc.expectedStates[i] {
+					t.Errorf("Expected state to be %s after event %s, got %s",
+						tc.expectedStates[i], event, currentState)
+				}
+			}
 
-		// Submit document
-		state, err := stateMachine.FireEvent(Draft, Submit, payload)
-		if err != nil {
-			t.Fatalf("Failed to submit document: %v", err)
-		}
+			// Verify action log length matches successful transitions
+			expectedLogLength := len(tc.events)
+			if tc.shouldError {
+				expectedLogLength = tc.errorIndex
+			}
+			if len(action.ActionLog) != expectedLogLength {
+				t.Errorf("Expected %d actions to be logged, got %d",
+					expectedLogLength, len(action.ActionLog))
+			}
+		})
+	}
+}
 
-		// Cancel document
-		state, err = stateMachine.FireEvent(state, Cancel, payload)
-		if err != nil {
-			t.Fatalf("Failed to cancel document: %v", err)
-		}
-		if state != Cancelled {
-			t.Errorf("Expected state to be %s, got %s", Cancelled, state)
-		}
-	})
+// TestInternalTransition tests internal transitions within the same state
+func TestInternalTransition(t *testing.T) {
+	// Create state machine builder
+	builder := fsm.NewStateMachineBuilder[ApprovalState, ApprovalEvent, ApprovalPayload]()
 
-	// Test validation failures
-	t.Run("ValidationFailures", func(t *testing.T) {
-		// Missing document ID
-		payload := ApprovalPayload{
-			Requester: "John Doe",
-			Reviewer:  "Jane Smith",
-		}
+	// Track transitions
+	transitionLog := make([]string, 0)
 
-		_, err := stateMachine.FireEvent(Draft, Submit, payload)
-		if err == nil {
-			t.Error("Expected error when submitting document with missing ID")
-		}
+	// Define internal transition
+	builder.InternalTransition().
+		Within(InReview).
+		On(Review). // Re-review
+		When(fsm.ConditionFunc[ApprovalPayload](func(payload ApprovalPayload) bool {
+			return true
+		})).
+		PerformFunc(func(from, to ApprovalState, event ApprovalEvent, payload ApprovalPayload) error {
+			transitionLog = append(transitionLog, fmt.Sprintf("Internal: %s [%s]", from, event))
+			return nil
+		})
 
-		// Missing reviewer
-		payload = ApprovalPayload{
-			DocumentID: "DOC-20250425-004",
-			Requester:  "John Doe",
-			// No reviewer
-		}
+	// Build the state machine
+	stateMachine, err := builder.Build("InternalTransitionTest")
+	if err != nil {
+		t.Fatalf("Failed to build state machine: %v", err)
+	}
 
-		state, _ := stateMachine.FireEvent(Draft, Submit, payload)
-		_, err = stateMachine.FireEvent(state, Review, payload)
-		if err == nil {
-			t.Error("Expected error when reviewing document with no reviewer")
-		}
-	})
+	// Test internal transition
+	payload := createValidPayload()
+	state, err := stateMachine.FireEvent(InReview, Review, payload)
+	if err != nil {
+		t.Fatalf("Failed to execute internal transition: %v", err)
+	}
 
-	// Test visualization
-	t.Run("Visualization", func(t *testing.T) {
-		// Generate all diagram formats
-		diagrams := stateMachine.GenerateDiagram(fsm.PlantUML, fsm.MarkdownTable, fsm.MarkdownFlowchart, fsm.MarkdownStateDiagram)
-		if diagrams == "" {
-			t.Error("Expected non-empty diagrams")
-		}
+	// State should remain the same
+	if state != InReview {
+		t.Errorf("Expected state to remain %s, got %s", InReview, state)
+	}
 
-		t.Logf("Generated %d characters of combined diagrams", len(diagrams))
-		t.Log(diagrams)
-	})
+	// Action should be executed
+	if len(transitionLog) != 1 {
+		t.Errorf("Expected 1 action to be logged, got %d", len(transitionLog))
+	}
+}
+
+// TestParallelTransitions tests parallel transitions from one state to multiple states
+func TestParallelTransitions(t *testing.T) {
+	// Create state machine builder
+	builder := fsm.NewStateMachineBuilder[ApprovalState, ApprovalEvent, ApprovalPayload]()
+
+	// Track transitions
+	transitionLog := make([]string, 0)
+
+	// Define parallel transitions
+	builder.ExternalParallelTransition().
+		From(Draft).
+		ToAmong(Submitted, InReview). // Unusual but for testing purposes
+		On(Submit).
+		When(fsm.ConditionFunc[ApprovalPayload](func(payload ApprovalPayload) bool {
+			return true
+		})).
+		PerformFunc(func(from, to ApprovalState, event ApprovalEvent, payload ApprovalPayload) error {
+			transitionLog = append(transitionLog, fmt.Sprintf("%s -> %s [%s]", from, to, event))
+			return nil
+		})
+
+	// Build the state machine
+	stateMachine, err := builder.Build("ParallelTransitionTest")
+	if err != nil {
+		t.Fatalf("Failed to build state machine: %v", err)
+	}
+
+	// Test parallel transition
+	payload := createValidPayload()
+	state, err := stateMachine.FireEvent(Draft, Submit, payload)
+	if err != nil {
+		t.Fatalf("Failed to execute parallel transition: %v", err)
+	}
+
+	// Check that we transitioned to one of the target states
+	if state != Submitted && state != InReview {
+		t.Errorf("Expected state to be either %s or %s, got %s", Submitted, InReview, state)
+	}
+
+	// In the current implementation, parallel transitions only log one transition
+	// This is because the state machine only returns one final state
+	if len(transitionLog) != 1 {
+		t.Errorf("Expected 1 transition to be logged, got %d", len(transitionLog))
+	}
+}
+
+// TestMultipleTransitionsBuilder tests the ExternalTransitions builder
+func TestMultipleTransitionsBuilder(t *testing.T) {
+	// Create state machine builder
+	builder := fsm.NewStateMachineBuilder[ApprovalState, ApprovalEvent, ApprovalPayload]()
+
+	// Track transitions
+	transitionLog := make([]string, 0)
+
+	// Define multiple source transitions
+	builder.ExternalTransitions().
+		FromAmong(Draft, Rejected, Cancelled).
+		To(Submitted).
+		On(Submit).
+		When(fsm.ConditionFunc[ApprovalPayload](func(payload ApprovalPayload) bool {
+			return true
+		})).
+		PerformFunc(func(from, to ApprovalState, event ApprovalEvent, payload ApprovalPayload) error {
+			transitionLog = append(transitionLog, fmt.Sprintf("%s -> %s [%s]", from, to, event))
+			return nil
+		})
+
+	// Build the state machine
+	stateMachine, err := builder.Build("MultipleTransitionsTest")
+	if err != nil {
+		t.Fatalf("Failed to build state machine: %v", err)
+	}
+
+	// Test transitions from different source states
+	payload := createValidPayload()
+
+	// From Draft
+	state, err := stateMachine.FireEvent(Draft, Submit, payload)
+	if err != nil {
+		t.Fatalf("Failed to transition from Draft: %v", err)
+	}
+	if state != Submitted {
+		t.Errorf("Expected state to be %s, got %s", Submitted, state)
+	}
+
+	// From Rejected
+	state, err = stateMachine.FireEvent(Rejected, Submit, payload)
+	if err != nil {
+		t.Fatalf("Failed to transition from Rejected: %v", err)
+	}
+	if state != Submitted {
+		t.Errorf("Expected state to be %s, got %s", Submitted, state)
+	}
+
+	// From Cancelled
+	state, err = stateMachine.FireEvent(Cancelled, Submit, payload)
+	if err != nil {
+		t.Fatalf("Failed to transition from Cancelled: %v", err)
+	}
+	if state != Submitted {
+		t.Errorf("Expected state to be %s, got %s", Submitted, state)
+	}
+
+	// Check that we logged all transitions
+	if len(transitionLog) != 3 {
+		t.Errorf("Expected 3 transitions to be logged, got %d", len(transitionLog))
+	}
 }

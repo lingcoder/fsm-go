@@ -59,6 +59,9 @@ func TestOrderStateMachine(t *testing.T) {
 		From(Paid).
 		To(Delivered).
 		On(Deliver).
+		WhenFunc(func(payload OrderPayload) bool {
+			return true
+		}).
 		PerformFunc(func(from, to OrderState, event OrderEvent, payload OrderPayload) error {
 			t.Logf("Order %s delivered", payload.OrderId)
 			return nil
@@ -69,6 +72,9 @@ func TestOrderStateMachine(t *testing.T) {
 		From(Delivered).
 		To(Finished).
 		On(Confirm).
+		WhenFunc(func(payload OrderPayload) bool {
+			return true
+		}).
 		PerformFunc(func(from, to OrderState, event OrderEvent, payload OrderPayload) error {
 			t.Logf("Order %s confirmed and finished", payload.OrderId)
 			return nil
@@ -79,6 +85,9 @@ func TestOrderStateMachine(t *testing.T) {
 		FromAmong(Created, Paid, Delivered).
 		To(Cancelled).
 		On(Cancel).
+		WhenFunc(func(payload OrderPayload) bool {
+			return true
+		}).
 		PerformFunc(func(from, to OrderState, event OrderEvent, payload OrderPayload) error {
 			t.Logf("Order %s cancelled from %s state", payload.OrderId, from)
 			return nil
@@ -153,6 +162,9 @@ func TestParallelTransition(t *testing.T) {
 		From(Paid).
 		ToAmong(Delivered, Notified).
 		On(Process).
+		WhenFunc(func(payload OrderPayload) bool {
+			return true
+		}).
 		PerformFunc(func(from, to OrderState, event OrderEvent, payload OrderPayload) error {
 			t.Logf("Processing order %s to %s state", payload.OrderId, to)
 			return nil
@@ -211,12 +223,24 @@ func TestVisualization(t *testing.T) {
 	builder.ExternalTransition().
 		From(Created).
 		To(Paid).
-		On(Pay)
+		On(Pay).
+		WhenFunc(func(payload OrderPayload) bool {
+			return true
+		}).
+		PerformFunc(func(from, to OrderState, event OrderEvent, payload OrderPayload) error {
+			return nil
+		})
 
 	builder.ExternalTransition().
 		From(Paid).
 		To(Delivered).
-		On(Deliver)
+		On(Deliver).
+		WhenFunc(func(payload OrderPayload) bool {
+			return true
+		}).
+		PerformFunc(func(from, to OrderState, event OrderEvent, payload OrderPayload) error {
+			return nil
+		})
 
 	// Build the state machine
 	stateMachine, err := builder.Build("VisualizationStateMachine")

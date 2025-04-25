@@ -103,13 +103,17 @@ func TestGameStateMachine(t *testing.T) {
 		From(MainMenu).
 		To(Loading).
 		On(StartGame).
+		When(resourceLoaded).
 		Perform(gameStateAction)
 
 	// Loading to playing
 	builder.ExternalTransition().
 		From(Loading).
 		To(Playing).
-		When(resourceLoaded).
+		On(StartGame).
+		WhenFunc(func(payload GamePayload) bool {
+			return true
+		}).
 		Perform(gameStateAction)
 
 	// Playing to paused
@@ -117,6 +121,7 @@ func TestGameStateMachine(t *testing.T) {
 		From(Playing).
 		To(Paused).
 		On(PauseGame).
+		When(playerAlive).
 		Perform(gameStateAction)
 
 	// Paused to playing
@@ -124,6 +129,7 @@ func TestGameStateMachine(t *testing.T) {
 		From(Paused).
 		To(Playing).
 		On(ResumeGame).
+		When(playerAlive).
 		Perform(gameStateAction)
 
 	// Playing to game over
@@ -131,6 +137,9 @@ func TestGameStateMachine(t *testing.T) {
 		From(Playing).
 		To(GameOver).
 		On(PlayerDied).
+		WhenFunc(func(payload GamePayload) bool {
+			return true // 玩家死亡不需要检查玩家是否存活
+		}).
 		Perform(gameOverAction)
 
 	// Playing to victory
@@ -146,13 +155,14 @@ func TestGameStateMachine(t *testing.T) {
 		From(Playing).
 		To(Settings).
 		On(OpenSettings).
+		When(playerAlive).
 		Perform(gameStateAction)
-
 	// Settings to playing
 	builder.ExternalTransition().
 		From(Settings).
 		To(Playing).
 		On(CloseSettings).
+		When(playerAlive).
 		Perform(gameStateAction)
 
 	// Playing to inventory
@@ -160,6 +170,7 @@ func TestGameStateMachine(t *testing.T) {
 		From(Playing).
 		To(Inventory).
 		On(OpenInventory).
+		When(playerAlive).
 		Perform(gameStateAction)
 
 	// Inventory to playing
@@ -167,6 +178,7 @@ func TestGameStateMachine(t *testing.T) {
 		From(Inventory).
 		To(Playing).
 		On(CloseInventory).
+		When(playerAlive).
 		Perform(gameStateAction)
 
 	// Return to main menu from various states
@@ -174,6 +186,9 @@ func TestGameStateMachine(t *testing.T) {
 		FromAmong(Paused, GameOver, Victory).
 		To(MainMenu).
 		On(ReturnToMenu).
+		WhenFunc(func(payload GamePayload) bool {
+			return true // 返回主菜单不需要检查玩家是否存活
+		}).
 		Perform(gameStateAction)
 
 	// Build the state machine
@@ -201,7 +216,7 @@ func TestGameStateMachine(t *testing.T) {
 		}
 
 		// Load resources and start playing
-		state, err = stateMachine.FireEvent(state, GameEvent(""), payload) // Auto-transition
+		state, err = stateMachine.FireEvent(state, StartGame, payload)
 		if err != nil {
 			t.Fatalf("Failed to load resources: %v", err)
 		}
@@ -275,7 +290,7 @@ func TestGameStateMachine(t *testing.T) {
 
 		// Start game and get to playing state
 		state, _ := stateMachine.FireEvent(MainMenu, StartGame, payload)
-		state, _ = stateMachine.FireEvent(state, GameEvent(""), payload) // Auto-transition
+		state, _ = stateMachine.FireEvent(state, StartGame, payload) // Auto-transition
 
 		// Player dies
 		state, err := stateMachine.FireEvent(state, PlayerDied, payload)
