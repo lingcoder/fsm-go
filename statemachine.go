@@ -15,6 +15,14 @@ type StateMachine[S comparable, E comparable, C any] interface {
 	// Returns the new state and any error that occurred
 	FireEvent(sourceState S, event E, ctx C) (S, error)
 
+	// FireParallelEvent triggers parallel state transitions based on the current state and event
+	// Returns a slice of new states and any error that occurred
+	FireParallelEvent(sourceState S, event E, ctx C) ([]S, error)
+
+	// Verify checks if there is a valid transition for the given state and event
+	// Returns true if a transition exists, false otherwise
+	Verify(sourceState S, event E) bool
+
 	// ShowStateMachine returns a string representation of the state machine
 	ShowStateMachine() string
 
@@ -52,6 +60,18 @@ func (s *State[S, E, C]) AddTransition(event E, target *State[S, E, C], transTyp
 	return transition
 }
 
+// AddParallelTransitions adds multiple transitions for the same event to different target states
+func (s *State[S, E, C]) AddParallelTransitions(event E, targets []*State[S, E, C], transType TransitionType) []*Transition[S, E, C] {
+	transitions := make([]*Transition[S, E, C], 0, len(targets))
+
+	for _, target := range targets {
+		transition := s.AddTransition(event, target, transType)
+		transitions = append(transitions, transition)
+	}
+
+	return transitions
+}
+
 // GetEventTransitions returns all transitions for a given event
 func (s *State[S, E, C]) GetEventTransitions(event E) []*Transition[S, E, C] {
 	return s.eventTransitions[event]
@@ -78,10 +98,26 @@ type Condition[C any] interface {
 	IsSatisfied(ctx C) bool
 }
 
+// ConditionFunc is a function type that implements Condition interface
+type ConditionFunc[C any] func(ctx C) bool
+
+// IsSatisfied implements Condition interface
+func (f ConditionFunc[C]) IsSatisfied(ctx C) bool {
+	return f(ctx)
+}
+
 // Action is an interface for transition actions
 type Action[S comparable, E comparable, C any] interface {
 	// Execute runs the action during a state transition
 	Execute(from, to S, event E, ctx C) error
+}
+
+// ActionFunc is a function type that implements Action interface
+type ActionFunc[S comparable, E comparable, C any] func(from, to S, event E, ctx C) error
+
+// Execute implements Action interface
+func (f ActionFunc[S, E, C]) Execute(from, to S, event E, ctx C) error {
+	return f(from, to, event, ctx)
 }
 
 // Transition represents a state transition
@@ -173,6 +209,76 @@ func (sm *StateMachineImpl[S, E, C]) FireEvent(sourceStateId S, event E, ctx C) 
 	// No transition with satisfied conditions found
 	var zeroState S
 	return zeroState, errors.Errorf("no transition conditions met for event %v from state %v", event, sourceStateId)
+}
+
+// FireParallelEvent triggers parallel state transitions based on the current state and event
+func (sm *StateMachineImpl[S, E, C]) FireParallelEvent(sourceStateId S, event E, ctx C) ([]S, error) {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	if !sm.ready {
+		return nil, errors.New("state machine is not built yet")
+	}
+
+	// Get source state
+	sourceState, ok := sm.stateMap[sourceStateId]
+	if !ok {
+		return nil, errors.Errorf("state not found: %v", sourceStateId)
+	}
+
+	// Get transitions for the event
+	transitions := sourceState.GetEventTransitions(event)
+	if transitions == nil || len(transitions) == 0 {
+		return nil, errors.Errorf("no transition found for event %v from state %v", event, sourceStateId)
+	}
+
+	// Execute all transitions with satisfied conditions
+	var results []S
+	var validTransitions []*Transition[S, E, C]
+
+	// First, find all valid transitions
+	for _, transition := range transitions {
+		if transition.Condition == nil || transition.Condition.IsSatisfied(ctx) {
+			validTransitions = append(validTransitions, transition)
+		}
+	}
+
+	if len(validTransitions) == 0 {
+		return nil, errors.Errorf("no transition conditions met for event %v from state %v", event, sourceStateId)
+	}
+
+	// Then execute all valid transitions
+	for _, transition := range validTransitions {
+		targetState, err := transition.Transit(ctx, false) // Don't check condition again
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, targetState.GetID())
+	}
+
+	return results, nil
+}
+
+// Verify checks if there is a valid transition for the given state and event
+func (sm *StateMachineImpl[S, E, C]) Verify(sourceStateId S, event E) bool {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	if !sm.ready {
+		return false
+	}
+
+	// Get source state
+	sourceState, ok := sm.stateMap[sourceStateId]
+	if !ok {
+		return false
+	}
+
+	// Get transitions for the event
+	transitions := sourceState.GetEventTransitions(event)
+
+	// Return true if there is at least one transition for this event
+	return transitions != nil && len(transitions) > 0
 }
 
 // GetState returns a state by ID, creating it if it doesn't exist

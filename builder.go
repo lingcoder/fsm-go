@@ -48,6 +48,17 @@ func (b *StateMachineBuilder[S, E, C]) ExternalTransitions() *MultipleTransition
 	}
 }
 
+// ExternalParallelTransition starts defining an external parallel transition
+// Returns:
+//
+//	A parallel transition builder for configuring the parallel transition
+func (b *StateMachineBuilder[S, E, C]) ExternalParallelTransition() *ParallelTransitionBuilder[S, E, C] {
+	return &ParallelTransitionBuilder[S, E, C]{
+		stateMachine:   b.stateMachine,
+		transitionType: External,
+	}
+}
+
 // Build finalizes the state machine with the given ID
 // Parameters:
 //
@@ -241,6 +252,102 @@ func (b *MultipleTransitionBuilder[S, E, C]) Perform(action Action[S, E, C]) *Mu
 		transition := sourceState.AddTransition(b.event, targetState, b.transitionType)
 
 		// Set condition and action
+		transition.Condition = b.condition
+		transition.Action = b.action
+	}
+
+	return b
+}
+
+// ParallelTransitionBuilder builds transitions to multiple target states
+type ParallelTransitionBuilder[S comparable, E comparable, C any] struct {
+	stateMachine   *StateMachineImpl[S, E, C]
+	transitionType TransitionType
+	sourceId       S
+	targetIds      []S
+	event          E
+	condition      Condition[C]
+	action         Action[S, E, C]
+}
+
+// From specifies the source state
+// Parameters:
+//
+//	state: Source state
+//
+// Returns:
+//
+//	The parallel transition builder for method chaining
+func (b *ParallelTransitionBuilder[S, E, C]) From(state S) *ParallelTransitionBuilder[S, E, C] {
+	b.sourceId = state
+	return b
+}
+
+// ToAmong specifies multiple target states
+// Parameters:
+//
+//	states: Multiple target states
+//
+// Returns:
+//
+//	The parallel transition builder for method chaining
+func (b *ParallelTransitionBuilder[S, E, C]) ToAmong(states ...S) *ParallelTransitionBuilder[S, E, C] {
+	b.targetIds = states
+	return b
+}
+
+// On specifies the triggering event
+// Parameters:
+//
+//	event: The event that triggers these transitions
+//
+// Returns:
+//
+//	The parallel transition builder for method chaining
+func (b *ParallelTransitionBuilder[S, E, C]) On(event E) *ParallelTransitionBuilder[S, E, C] {
+	b.event = event
+	return b
+}
+
+// When specifies the condition for all transitions
+// Parameters:
+//
+//	condition: The condition that must be satisfied for the transitions to occur
+//
+// Returns:
+//
+//	The parallel transition builder for method chaining
+func (b *ParallelTransitionBuilder[S, E, C]) When(condition Condition[C]) *ParallelTransitionBuilder[S, E, C] {
+	b.condition = condition
+	return b
+}
+
+// Perform specifies the action to execute during all transitions
+// Parameters:
+//
+//	action: The action to execute when the transitions occur
+//
+// Returns:
+//
+//	The parallel transition builder for method chaining
+func (b *ParallelTransitionBuilder[S, E, C]) Perform(action Action[S, E, C]) *ParallelTransitionBuilder[S, E, C] {
+	b.action = action
+
+	// Get or create source state
+	sourceState := b.stateMachine.GetState(b.sourceId)
+
+	// Get or create all target states
+	targetStates := make([]*State[S, E, C], 0, len(b.targetIds))
+	for _, targetId := range b.targetIds {
+		targetState := b.stateMachine.GetState(targetId)
+		targetStates = append(targetStates, targetState)
+	}
+
+	// Add parallel transitions
+	transitions := sourceState.AddParallelTransitions(b.event, targetStates, b.transitionType)
+
+	// Set condition and action for all transitions
+	for _, transition := range transitions {
 		transition.Condition = b.condition
 		transition.Action = b.action
 	}
