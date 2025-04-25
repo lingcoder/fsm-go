@@ -1,25 +1,33 @@
 # FSM-Go: Go 语言轻量级有限状态机
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/lingcoder/fsm-go.svg)](https://pkg.go.dev/github.com/lingcoder/fsm-go)
+[![Go Report Card](https://goreportcard.com/badge/github.com/lingcoder/fsm-go)](https://goreportcard.com/report/github.com/lingcoder/fsm-go)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 FSM-Go 是一个轻量级、高性能、无状态的有限状态机 Go 实现，灵感来自阿里巴巴的 COLA 状态机组件。
 
-## 特性
+<p align="center">
+  <a href="README.md">English Documentation</a>
+</p>
 
-- 轻量级和无状态设计，提供高性能
-- 使用 Go 泛型实现类型安全
-- 流畅的 API 用于定义状态机
-- 支持外部、内部和并行状态转换
-- 带有自定义逻辑的条件转换
-- 转换过程中执行的动作
-- 线程安全，支持并发使用
-- 支持状态机图表可视化
+## ✨ 特性
 
-## 安装
+- 🪶 **轻量级** - 极简的无状态设计，提供高性能
+- 🔒 **类型安全** - 使用 Go 泛型实现编译时类型检查
+- 🔄 **流畅的 API** - 直观的构建器模式用于定义状态机
+- 🔀 **多样化转换** - 支持外部、内部和并行状态转换
+- 🧪 **条件逻辑** - 灵活的条件控制何时进行状态转换
+- 🎬 **动作执行** - 转换过程中执行的自定义动作
+- 🔄 **线程安全** - 为多线程环境下的并发使用而设计
+- 📊 **可视化** - 内置支持生成状态机图表
+
+## 📦 安装
 
 ```bash
 go get github.com/lingcoder/fsm-go
 ```
 
-## 使用方法
+## 🚀 使用方法
 
 ```go
 package main
@@ -115,18 +123,24 @@ func main() {
 }
 ```
 
-## 核心概念
+## 🧩 核心概念
 
-- **状态 (State)**: 表示业务流程中的特定状态
-- **事件 (Event)**: 触发状态转换
-- **转换 (Transition)**: 定义状态如何响应事件而变化
-  - **外部转换 (External Transition)**: 不同状态之间的转换
-  - **内部转换 (Internal Transition)**: 同一状态内的动作
-- **条件 (Condition)**: 决定是否应该发生转换的逻辑
-- **动作 (Action)**: 转换发生时执行的逻辑
-- **状态机 (StateMachine)**: 管理状态和转换的核心组件
+| 概念 | 描述 |
+|------|------|
+| **状态 (State)** | 表示业务流程中的特定状态 |
+| **事件 (Event)** | 触发状态转换 |
+| **转换 (Transition)** | 定义状态如何响应事件而变化 |
+| **条件 (Condition)** | 决定是否应该发生转换的逻辑 |
+| **动作 (Action)** | 转换发生时执行的逻辑 |
+| **状态机 (StateMachine)** | 管理状态和转换的核心组件 |
 
-## 示例
+### 转换类型
+
+- **外部转换 (External Transition)**: 不同状态之间的转换
+- **内部转换 (Internal Transition)**: 同一状态内的动作
+- **并行转换 (Parallel Transition)**: 同时转换到多个状态
+
+## 📚 示例
 
 查看 `examples` 目录获取更详细的示例：
 
@@ -134,7 +148,7 @@ func main() {
 - `examples/workflow`: 审批工作流
 - `examples/game`: 游戏状态管理
 
-## 性能
+## ⚡ 性能
 
 FSM-Go 设计注重高性能：
 
@@ -143,7 +157,7 @@ FSM-Go 设计注重高性能：
 - 线程安全，支持并发使用
 - 测试套件中包含基准测试
 
-## 可视化
+## 📊 可视化
 
 FSM-Go 提供一种统一的方式来可视化状态机：
 
@@ -151,17 +165,19 @@ FSM-Go 提供一种统一的方式来可视化状态机：
 // 默认格式 (PlantUML)
 plantUML := stateMachine.GenerateDiagram()
 fmt.Println(plantUML)
-// 生成 Markdown 表格、流程图和 Mermaid 状态图
-table := stateMachine.GenerateDiagram(fsm.MarkdownTable)     // Markdown table format
+
+// 生成特定格式
+table := stateMachine.GenerateDiagram(fsm.MarkdownTable)     // Markdown 表格格式
 fmt.Println(table)
-flow := stateMachine.GenerateDiagram(fsm.MarkdownFlow)       // Markdown flow chart format
+
+flow := stateMachine.GenerateDiagram(fsm.MarkdownFlow)       // Markdown 流程图格式
 fmt.Println(flow)
 
-// Generate multiple formats separately
+// 分别生成多种格式
 diagrams := stateMachine.GenerateDiagram(fsm.PlantUML, fsm.MarkdownTable, fsm.MarkdownFlowchart, fsm.MarkdownStateDiagram)
 fmt.Println(diagrams)
 ```
 
-## 许可证
+## 📄 许可证
 
-MIT
+[MIT](LICENSE) © LingCoder

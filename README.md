@@ -1,27 +1,33 @@
 # FSM-Go: A Lightweight Finite State Machine for Go
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/lingcoder/fsm-go.svg)](https://pkg.go.dev/github.com/lingcoder/fsm-go)
+[![Go Report Card](https://goreportcard.com/badge/github.com/lingcoder/fsm-go)](https://goreportcard.com/report/github.com/lingcoder/fsm-go)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 FSM-Go is a lightweight, high-performance, stateless finite state machine implementation in Go, inspired by Alibaba's COLA state machine component.
 
-[中文文档](README-zh.md)
+<p align="center">
+  <a href="README-zh.md">中文文档</a>
+</p>
 
-## Features
+## ✨ Features
 
-- Lightweight and stateless design for high performance
-- Type-safe implementation using Go generics
-- Fluent API for defining state machines
-- Support for external, internal, and parallel transitions
-- Conditional transitions with custom logic
-- Actions that execute during transitions
-- Thread-safe for concurrent use
-- Visualization support for state machine diagrams
+- 🪶 **Lightweight** - Minimal, stateless design for high performance
+- 🔒 **Type-safe** - Built with Go generics for compile-time type checking
+- 🔄 **Fluent API** - Intuitive builder pattern for defining state machines
+- 🔀 **Versatile Transitions** - Support for external, internal, and parallel transitions
+- 🧪 **Conditional Logic** - Flexible conditions to control when transitions occur
+- 🎬 **Action Execution** - Custom actions that execute during transitions
+- 🔄 **Thread-safe** - Designed for concurrent use in multi-threaded environments
+- 📊 **Visualization** - Built-in support for generating state machine diagrams
 
-## Installation
+## 📦 Installation
 
 ```bash
 go get github.com/lingcoder/fsm-go
 ```
 
-## Usage
+## 🚀 Usage
 
 ```go
 package main
@@ -117,18 +123,24 @@ func main() {
 }
 ```
 
-## Core Concepts
+## 🧩 Core Concepts
 
-- **State**: Represents a specific state in your business process
-- **Event**: Triggers state transitions
-- **Transition**: Defines how states change in response to events
-  - **External Transition**: Transition between different states
-  - **Internal Transition**: Actions within the same state
-- **Condition**: Logic that determines if a transition should occur
-- **Action**: Logic executed when a transition occurs
-- **StateMachine**: The core component that manages states and transitions
+| Concept | Description |
+|---------|-------------|
+| **State** | Represents a specific state in your business process |
+| **Event** | Triggers state transitions |
+| **Transition** | Defines how states change in response to events |
+| **Condition** | Logic that determines if a transition should occur |
+| **Action** | Logic executed when a transition occurs |
+| **StateMachine** | The core component that manages states and transitions |
 
-## Examples
+### Types of Transitions
+
+- **External Transition**: Transition between different states
+- **Internal Transition**: Actions within the same state
+- **Parallel Transition**: Transition to multiple states simultaneously
+
+## 📚 Examples
 
 Check the `examples` directory for more detailed examples:
 
@@ -136,7 +148,7 @@ Check the `examples` directory for more detailed examples:
 - `examples/workflow`: Approval workflow
 - `examples/game`: Game state management
 
-## Performance
+## ⚡ Performance
 
 FSM-Go is designed for high performance:
 
@@ -145,7 +157,7 @@ FSM-Go is designed for high performance:
 - Thread-safe for concurrent use
 - Benchmarks included in the test suite
 
-## Visualization
+## 📊 Visualization
 
 FSM-Go provides a unified way to visualize your state machine with different formats:
 
@@ -153,6 +165,7 @@ FSM-Go provides a unified way to visualize your state machine with different for
 // Default format (PlantUML)
 plantUML := stateMachine.GenerateDiagram()
 fmt.Println(plantUML)
+
 // Generate specific format
 table := stateMachine.GenerateDiagram(fsm.MarkdownTable)     // Markdown table format
 fmt.Println(table)
@@ -165,6 +178,6 @@ diagrams := stateMachine.GenerateDiagram(fsm.PlantUML, fsm.MarkdownTable, fsm.Ma
 fmt.Println(diagrams)
 ```
 
-## License
+## 📄 License
 
-MIT
+[MIT](LICENSE) © LingCoder
