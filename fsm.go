@@ -2,7 +2,6 @@ package fsm
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"strings"
 	"sync"
 )
@@ -151,7 +150,7 @@ type Transition[S comparable, E comparable, P any] struct {
 func (t *Transition[S, E, P]) Transit(payload P, checkCondition bool) (*State[S, E, P], error) {
 	// Verify internal transition
 	if t.TransType == Internal && t.Source != t.Target {
-		return nil, errors.New("internal transition source and target states must be the same")
+		return nil, ErrInternalTransition
 	}
 
 	// Check condition if required
@@ -162,7 +161,7 @@ func (t *Transition[S, E, P]) Transit(payload P, checkCondition bool) (*State[S,
 	// Execute action
 	if t.Action != nil {
 		if err := t.Action.Execute(t.Source.GetID(), t.Target.GetID(), t.Event, payload); err != nil {
-			return nil, errors.Wrap(err, "action execution failed")
+			return nil, ErrActionExecutionFailed
 		}
 	}
 
@@ -193,21 +192,21 @@ func (sm *StateMachineImpl[S, E, P]) FireEvent(sourceStateId S, event E, payload
 
 	if !sm.ready {
 		var zeroState S
-		return zeroState, errors.New("state machine is not built yet")
+		return zeroState, ErrStateMachineNotBuilt
 	}
 
 	// Get source state
 	sourceState, ok := sm.stateMap[sourceStateId]
 	if !ok {
 		var zeroState S
-		return zeroState, errors.Errorf("state not found: %v", sourceStateId)
+		return zeroState, ErrStateNotFound
 	}
 
 	// Get transitions for the event
 	transitions := sourceState.GetEventTransitions(event)
 	if transitions == nil || len(transitions) == 0 {
 		var zeroState S
-		return zeroState, errors.Errorf("no transition found for event %v from state %v", event, sourceStateId)
+		return zeroState, ErrTransitionNotFound
 	}
 
 	// Find the first transition with satisfied condition
@@ -223,7 +222,7 @@ func (sm *StateMachineImpl[S, E, P]) FireEvent(sourceStateId S, event E, payload
 	}
 
 	var zeroState S
-	return zeroState, errors.Errorf("no transition conditions met for event %v from state %v", event, sourceStateId)
+	return zeroState, ErrConditionNotMet
 }
 
 // FireParallelEvent triggers parallel state transitions based on the current state and event
@@ -232,19 +231,19 @@ func (sm *StateMachineImpl[S, E, P]) FireParallelEvent(sourceStateId S, event E,
 	defer sm.mutex.RUnlock()
 
 	if !sm.ready {
-		return nil, errors.New("state machine is not built yet")
+		return nil, ErrStateMachineNotBuilt
 	}
 
 	// Get source state
 	sourceState, ok := sm.stateMap[sourceStateId]
 	if !ok {
-		return nil, errors.Errorf("state not found: %v", sourceStateId)
+		return nil, ErrStateNotFound
 	}
 
 	// Get transitions for the event
 	transitions := sourceState.GetEventTransitions(event)
 	if transitions == nil || len(transitions) == 0 {
-		return nil, errors.Errorf("no transition found for event %v from state %v", event, sourceStateId)
+		return nil, ErrTransitionNotFound
 	}
 
 	// Execute all transitions with satisfied conditions
@@ -259,7 +258,7 @@ func (sm *StateMachineImpl[S, E, P]) FireParallelEvent(sourceStateId S, event E,
 	}
 
 	if len(validTransitions) == 0 {
-		return nil, errors.Errorf("no transition conditions met for event %v from state %v", event, sourceStateId)
+		return nil, ErrConditionNotMet
 	}
 
 	// Then execute all valid transitions
@@ -434,7 +433,6 @@ func (sm *StateMachineImpl[S, E, P]) generateMarkdownTable() string {
 				if transition.TransType == Internal {
 					transType = "Internal"
 				}
-
 				sb.WriteString(fmt.Sprintf("| `%v` | `%v` | `%v` | %s |\n",
 					sourceId, event, transition.Target.id, transType))
 			}
@@ -487,34 +485,26 @@ func (sm *StateMachineImpl[S, E, P]) generateMarkdownStateDiagram() string {
 	var sb strings.Builder
 	sb.WriteString("```mermaid\nstateDiagram-v2\n")
 
-	// Define transitions (states will be automatically created)
+	// Add states
 	for _, state := range sm.stateMap {
-		for _, transitions := range state.eventTransitions {
+		sb.WriteString(fmt.Sprintf("    %v\n", state.id))
+	}
+
+	// Add transitions
+	for _, state := range sm.stateMap {
+		for event, transitions := range state.eventTransitions {
 			for _, transition := range transitions {
-				sb.WriteString(fmt.Sprintf("    %v --> %v : %v\n",
-					transition.Source.id, transition.Target.id, transition.Event))
+				if transition.TransType == External {
+					sb.WriteString(fmt.Sprintf("    %v --> %v : %v\n",
+						transition.Source.id, transition.Target.id, event))
+				} else {
+					sb.WriteString(fmt.Sprintf("    %v --> %v : %v [internal]\n",
+						transition.Source.id, transition.Target.id, event))
+				}
 			}
 		}
 	}
 
 	sb.WriteString("```\n")
 	return sb.String()
-}
-
-// GeneratePlantUML returns a PlantUML diagram of the state machine
-// Deprecated: Use GenerateDiagram(PlantUML) or GenerateDiagram() instead
-func (sm *StateMachineImpl[S, E, P]) GeneratePlantUML() string {
-	return sm.GenerateDiagram(PlantUML)
-}
-
-// GenerateMarkdown returns a Markdown representation of the state machine
-// Deprecated: Use GenerateDiagram(MarkdownTable) instead
-func (sm *StateMachineImpl[S, E, P]) GenerateMarkdown() string {
-	return sm.GenerateDiagram(MarkdownTable)
-}
-
-// GenerateMarkdownFlowchart returns a Mermaid flowchart diagram in Markdown format
-// Deprecated: Use GenerateDiagram(MarkdownFlowchart) instead
-func (sm *StateMachineImpl[S, E, P]) GenerateMarkdownFlowchart() string {
-	return sm.GenerateDiagram(MarkdownFlowchart)
 }

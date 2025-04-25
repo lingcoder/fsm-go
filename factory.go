@@ -29,7 +29,7 @@ func RegisterStateMachine[S comparable, E comparable, P any](machineId string, s
 	defer registry.mutex.Unlock()
 
 	if _, exists := registry.stateMachines[machineId]; exists {
-		return StateMachineAlreadyExist(machineId)
+		return ErrStateMachineAlreadyExist
 	}
 
 	registry.stateMachines[machineId] = stateMachine
@@ -52,10 +52,10 @@ func GetStateMachine[S comparable, E comparable, P any](machineId string) (State
 		if typedSM, ok := sm.(StateMachine[S, E, P]); ok {
 			return typedSM, nil
 		}
-		return nil, StateMachineNotFound(machineId)
+		return nil, ErrStateMachineNotFound
 	}
 
-	return nil, StateMachineNotFound(machineId)
+	return nil, ErrStateMachineNotFound
 }
 
 // ListStateMachines returns a list of all registered state machine IDs
