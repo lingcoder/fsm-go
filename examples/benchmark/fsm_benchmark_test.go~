@@ -23,11 +23,11 @@ func BenchmarkDiagramGeneration(b *testing.B) {
 
 	builder.ExternalTransition().
 		From("B").
-		To("D").
+		To("C").
 		On("EVENT2")
 
 	builder.ExternalTransition().
-		From("D").
+		From("C").
 		To("D").
 		On("EVENT3")
 

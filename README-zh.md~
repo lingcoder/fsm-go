@@ -69,9 +69,9 @@ type OrderPayload struct {
 // 定义动作
 type OrderAction struct{}
 
-func (a *OrderAction) Execute(from OrderState, to OrderState, event OrderEvent, payload OrderPayload) error {
+func (a *OrderAction) Execute(from OrderState, to OrderState, event OrderEvent, data OrderPayload) error {
 	fmt.Printf("订单 %s 从 %s 状态转换到 %s 状态，触发事件: %s\n",
-		payload.OrderID, from, to, event)
+		data.OrderID, from, to, event)
 	return nil
 }
 

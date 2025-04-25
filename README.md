@@ -60,32 +60,32 @@ const (
 	EventCancel  OrderEvent = "CANCEL"
 )
 
-// Define context
-type OrderContext struct {
-	OrderID   string
-	Amount    float64
+// Define payload
+type OrderPayload struct {
+	OrderID string
+	Amount  float64
 }
 
 // Define action
 type OrderAction struct{}
 
-func (a *OrderAction) Execute(from OrderState, to OrderState, event OrderEvent, ctx OrderContext) error {
-	fmt.Printf("Order %s transitioning from %s to %s on event %s\n", 
-		ctx.OrderID, from, to, event)
+func (a *OrderAction) Execute(from OrderState, to OrderState, event OrderEvent, payload OrderPayload) error {
+	fmt.Printf("Order %s transitioning from %s to %s on event %s\n",
+		payload.OrderID, from, to, event)
 	return nil
 }
 
 // Define condition
 type OrderCondition struct{}
 
-func (c *OrderCondition) IsSatisfied(ctx OrderContext) bool {
+func (c *OrderCondition) IsSatisfied(payload OrderPayload) bool {
 	return true
 }
 
 func main() {
 	// Create a builder
-	builder := fsm.NewStateMachineBuilder[OrderState, OrderEvent, OrderContext]()
-	
+	builder := fsm.NewStateMachineBuilder[OrderState, OrderEvent, OrderPayload]()
+
 	// Define the state machine
 	builder.ExternalTransition().
 		From(OrderCreated).
@@ -93,32 +93,32 @@ func main() {
 		On(EventPay).
 		When(&OrderCondition{}).
 		Perform(&OrderAction{})
-	
+
 	builder.ExternalTransition().
 		From(OrderPaid).
 		To(OrderShipped).
 		On(EventShip).
 		When(&OrderCondition{}).
 		Perform(&OrderAction{})
-	
+
 	// Build the state machine
 	stateMachine, err := builder.Build("OrderStateMachine")
 	if err != nil {
 		log.Fatalf("Failed to build state machine: %v", err)
 	}
-	
-	// Create context
-	ctx := OrderContext{
+
+	// Create payload
+	payload := OrderPayload{
 		OrderID: "ORD-20250425-001",
 		Amount:  100.0,
 	}
-	
+
 	// Transition from CREATED to PAID
-	newState, err := stateMachine.FireEvent(OrderCreated, EventPay, ctx)
+	newState, err := stateMachine.FireEvent(OrderCreated, EventPay, payload)
 	if err != nil {
 		log.Fatalf("Transition failed: %v", err)
 	}
-	
+
 	fmt.Printf("New state: %v\n", newState)
 }
 ```

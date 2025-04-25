@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-// Define test states, events and context
+// Define test states, events and payload
 type testState string
 type testEvent string
-type testContext struct {
+type testPayload struct {
 	Value string
 }
 
@@ -29,20 +29,20 @@ const (
 // Simple condition that always returns true
 type alwaysTrueCondition struct{}
 
-func (c *alwaysTrueCondition) IsSatisfied(ctx testContext) bool {
+func (c *alwaysTrueCondition) IsSatisfied(payload testPayload) bool {
 	return true
 }
 
 // Simple action that does nothing
 type noopAction struct{}
 
-func (a *noopAction) Execute(from, to testState, event testEvent, ctx testContext) error {
+func (a *noopAction) Execute(from, to testState, event testEvent, payload testPayload) error {
 	return nil
 }
 
 // Create a test state machine
-func createTestStateMachine(tb testing.TB) StateMachine[testState, testEvent, testContext] {
-	builder := NewStateMachineBuilder[testState, testEvent, testContext]()
+func createTestStateMachine(tb testing.TB) StateMachine[testState, testEvent, testPayload] {
+	builder := NewStateMachineBuilder[testState, testEvent, testPayload]()
 
 	// Define state transitions
 	builder.ExternalTransition().
@@ -78,25 +78,25 @@ func createTestStateMachine(tb testing.TB) StateMachine[testState, testEvent, te
 // Benchmark: Single-thread state transition
 func BenchmarkSingleThreadTransition(b *testing.B) {
 	sm := createTestStateMachine(b)
-	ctx := testContext{Value: "test"}
+	payload := testPayload{Value: "test"}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		currentState := StateA
 
-		newState, err := sm.FireEvent(currentState, Event1, ctx)
+		newState, err := sm.FireEvent(currentState, Event1, payload)
 		if err != nil {
 			b.Fatalf("Failed to fire event: %v", err)
 		}
 		currentState = newState
 
-		newState, err = sm.FireEvent(currentState, Event2, ctx)
+		newState, err = sm.FireEvent(currentState, Event2, payload)
 		if err != nil {
 			b.Fatalf("Failed to fire event: %v", err)
 		}
 		currentState = newState
 
-		newState, err = sm.FireEvent(currentState, Event3, ctx)
+		newState, err = sm.FireEvent(currentState, Event3, payload)
 		if err != nil {
 			b.Fatalf("Failed to fire event: %v", err)
 		}
@@ -106,26 +106,26 @@ func BenchmarkSingleThreadTransition(b *testing.B) {
 // Benchmark: Multi-thread state transition
 func BenchmarkMultiThreadTransition(b *testing.B) {
 	sm := createTestStateMachine(b)
-	ctx := testContext{Value: "test"}
+	payload := testPayload{Value: "test"}
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			currentState := StateA
 
-			newState, err := sm.FireEvent(currentState, Event1, ctx)
+			newState, err := sm.FireEvent(currentState, Event1, payload)
 			if err != nil {
 				b.Fatalf("Failed to fire event: %v", err)
 			}
 			currentState = newState
 
-			newState, err = sm.FireEvent(currentState, Event2, ctx)
+			newState, err = sm.FireEvent(currentState, Event2, payload)
 			if err != nil {
 				b.Fatalf("Failed to fire event: %v", err)
 			}
 			currentState = newState
 
-			newState, err = sm.FireEvent(currentState, Event3, ctx)
+			newState, err = sm.FireEvent(currentState, Event3, payload)
 			if err != nil {
 				b.Fatalf("Failed to fire event: %v", err)
 			}
@@ -136,7 +136,7 @@ func BenchmarkMultiThreadTransition(b *testing.B) {
 // Benchmark: State machine creation
 func BenchmarkStateMachineCreation(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		builder := NewStateMachineBuilder[testState, testEvent, testContext]()
+		builder := NewStateMachineBuilder[testState, testEvent, testPayload]()
 
 		builder.ExternalTransition().
 			From(StateA).
@@ -159,7 +159,7 @@ func BenchmarkStateMachineCreation(b *testing.B) {
 // Benchmark: Large state machine with many states and transitions
 func BenchmarkLargeStateMachine(b *testing.B) {
 	// Create a state machine with 100 states and transitions
-	builder := NewStateMachineBuilder[testState, testEvent, testContext]()
+	builder := NewStateMachineBuilder[testState, testEvent, testPayload]()
 
 	const numStates = 100
 	states := make([]testState, numStates)
@@ -185,12 +185,12 @@ func BenchmarkLargeStateMachine(b *testing.B) {
 		b.Fatalf("Failed to build large state machine: %v", err)
 	}
 
-	ctx := testContext{Value: "test"}
+	payload := testPayload{Value: "test"}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		currentState := states[i%numStates]
-		newState, err := sm.FireEvent(currentState, Event1, ctx)
+		newState, err := sm.FireEvent(currentState, Event1, payload)
 		if err != nil {
 			b.Fatalf("Failed to fire event: %v", err)
 		}
@@ -201,7 +201,7 @@ func BenchmarkLargeStateMachine(b *testing.B) {
 // Benchmark: Concurrent state machine access
 func BenchmarkConcurrentStateMachineAccess(b *testing.B) {
 	sm := createTestStateMachine(b)
-	ctx := testContext{Value: "test"}
+	payload := testPayload{Value: "test"}
 
 	var wg sync.WaitGroup
 	numGoroutines := 100
@@ -226,7 +226,7 @@ func BenchmarkConcurrentStateMachineAccess(b *testing.B) {
 					event = Event3
 				}
 
-				_, err := sm.FireEvent(currentState, event, ctx)
+				_, err := sm.FireEvent(currentState, event, payload)
 				if err != nil {
 					// Ignore errors, as some are expected in concurrent testing
 					// For example, when state doesn't match the event

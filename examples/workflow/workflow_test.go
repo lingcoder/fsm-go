@@ -31,8 +31,8 @@ const (
 	Resubmit ApprovalEvent = "RESUBMIT"
 )
 
-// Approval workflow context
-type ApprovalContext struct {
+// Approval workflow payload
+type ApprovalPayload struct {
 	DocumentID    string
 	Requester     string
 	Reviewer      string
@@ -44,23 +44,23 @@ type ApprovalContext struct {
 // Submission condition
 type SubmitCondition struct{}
 
-func (c *SubmitCondition) IsSatisfied(ctx ApprovalContext) bool {
+func (c *SubmitCondition) IsSatisfied(payload ApprovalPayload) bool {
 	// Check if document is complete
-	return ctx.DocumentID != "" && ctx.Requester != ""
+	return payload.DocumentID != "" && payload.Requester != ""
 }
 
 // Reviewer check condition
 type ReviewerCondition struct{}
 
-func (c *ReviewerCondition) IsSatisfied(ctx ApprovalContext) bool {
+func (c *ReviewerCondition) IsSatisfied(payload ApprovalPayload) bool {
 	// Check if reviewer is assigned
-	return ctx.Reviewer != ""
+	return payload.Reviewer != ""
 }
 
 // Approval action
 type ApprovalAction struct{}
 
-func (a *ApprovalAction) Execute(from, to ApprovalState, event ApprovalEvent, ctx ApprovalContext) error {
+func (a *ApprovalAction) Execute(from, to ApprovalState, event ApprovalEvent, payload ApprovalPayload) error {
 	// In a real application, this would perform the actual state transition logic
 	return nil
 }
@@ -68,7 +68,7 @@ func (a *ApprovalAction) Execute(from, to ApprovalState, event ApprovalEvent, ct
 // TestApprovalWorkflow tests the basic functionality of an approval workflow state machine
 func TestApprovalWorkflow(t *testing.T) {
 	// Create state machine builder
-	builder := fsm.NewStateMachineBuilder[ApprovalState, ApprovalEvent, ApprovalContext]()
+	builder := fsm.NewStateMachineBuilder[ApprovalState, ApprovalEvent, ApprovalPayload]()
 
 	// Create conditions and actions
 	submitCondition := &SubmitCondition{}
@@ -128,7 +128,7 @@ func TestApprovalWorkflow(t *testing.T) {
 
 	// Test happy path workflow
 	t.Run("HappyPath", func(t *testing.T) {
-		ctx := ApprovalContext{
+		payload := ApprovalPayload{
 			DocumentID:    "DOC-20250425-001",
 			Requester:     "John Doe",
 			Reviewer:      "Jane Smith",
@@ -137,7 +137,7 @@ func TestApprovalWorkflow(t *testing.T) {
 		}
 
 		// Submit document
-		state, err := stateMachine.FireEvent(Draft, Submit, ctx)
+		state, err := stateMachine.FireEvent(Draft, Submit, payload)
 		if err != nil {
 			t.Fatalf("Failed to submit document: %v", err)
 		}
@@ -146,7 +146,7 @@ func TestApprovalWorkflow(t *testing.T) {
 		}
 
 		// Start review
-		state, err = stateMachine.FireEvent(state, Review, ctx)
+		state, err = stateMachine.FireEvent(state, Review, payload)
 		if err != nil {
 			t.Fatalf("Failed to start review: %v", err)
 		}
@@ -155,7 +155,7 @@ func TestApprovalWorkflow(t *testing.T) {
 		}
 
 		// Approve document
-		state, err = stateMachine.FireEvent(state, Approve, ctx)
+		state, err = stateMachine.FireEvent(state, Approve, payload)
 		if err != nil {
 			t.Fatalf("Failed to approve document: %v", err)
 		}
@@ -166,7 +166,7 @@ func TestApprovalWorkflow(t *testing.T) {
 
 	// Test rejection workflow
 	t.Run("RejectionPath", func(t *testing.T) {
-		ctx := ApprovalContext{
+		payload := ApprovalPayload{
 			DocumentID:    "DOC-20250425-002",
 			Requester:     "John Doe",
 			Reviewer:      "Jane Smith",
@@ -175,19 +175,19 @@ func TestApprovalWorkflow(t *testing.T) {
 		}
 
 		// Submit document
-		state, err := stateMachine.FireEvent(Draft, Submit, ctx)
+		state, err := stateMachine.FireEvent(Draft, Submit, payload)
 		if err != nil {
 			t.Fatalf("Failed to submit document: %v", err)
 		}
 
 		// Start review
-		state, err = stateMachine.FireEvent(state, Review, ctx)
+		state, err = stateMachine.FireEvent(state, Review, payload)
 		if err != nil {
 			t.Fatalf("Failed to start review: %v", err)
 		}
 
 		// Reject document
-		state, err = stateMachine.FireEvent(state, Reject, ctx)
+		state, err = stateMachine.FireEvent(state, Reject, payload)
 		if err != nil {
 			t.Fatalf("Failed to reject document: %v", err)
 		}
@@ -196,7 +196,7 @@ func TestApprovalWorkflow(t *testing.T) {
 		}
 
 		// Resubmit document
-		state, err = stateMachine.FireEvent(state, Resubmit, ctx)
+		state, err = stateMachine.FireEvent(state, Resubmit, payload)
 		if err != nil {
 			t.Fatalf("Failed to resubmit document: %v", err)
 		}
@@ -207,7 +207,7 @@ func TestApprovalWorkflow(t *testing.T) {
 
 	// Test cancellation
 	t.Run("CancellationPath", func(t *testing.T) {
-		ctx := ApprovalContext{
+		payload := ApprovalPayload{
 			DocumentID:    "DOC-20250425-003",
 			Requester:     "John Doe",
 			Reviewer:      "Jane Smith",
@@ -216,13 +216,13 @@ func TestApprovalWorkflow(t *testing.T) {
 		}
 
 		// Submit document
-		state, err := stateMachine.FireEvent(Draft, Submit, ctx)
+		state, err := stateMachine.FireEvent(Draft, Submit, payload)
 		if err != nil {
 			t.Fatalf("Failed to submit document: %v", err)
 		}
 
 		// Cancel document
-		state, err = stateMachine.FireEvent(state, Cancel, ctx)
+		state, err = stateMachine.FireEvent(state, Cancel, payload)
 		if err != nil {
 			t.Fatalf("Failed to cancel document: %v", err)
 		}
@@ -234,25 +234,25 @@ func TestApprovalWorkflow(t *testing.T) {
 	// Test validation failures
 	t.Run("ValidationFailures", func(t *testing.T) {
 		// Missing document ID
-		ctx := ApprovalContext{
+		payload := ApprovalPayload{
 			Requester: "John Doe",
 			Reviewer:  "Jane Smith",
 		}
 
-		_, err := stateMachine.FireEvent(Draft, Submit, ctx)
+		_, err := stateMachine.FireEvent(Draft, Submit, payload)
 		if err == nil {
 			t.Error("Expected error when submitting document with missing ID")
 		}
 
 		// Missing reviewer
-		ctx = ApprovalContext{
+		payload = ApprovalPayload{
 			DocumentID: "DOC-20250425-004",
 			Requester:  "John Doe",
 			// No reviewer
 		}
 
-		state, _ := stateMachine.FireEvent(Draft, Submit, ctx)
-		_, err = stateMachine.FireEvent(state, Review, ctx)
+		state, _ := stateMachine.FireEvent(Draft, Submit, payload)
+		_, err = stateMachine.FireEvent(state, Review, payload)
 		if err == nil {
 			t.Error("Expected error when reviewing document with no reviewer")
 		}

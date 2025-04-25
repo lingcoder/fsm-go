@@ -29,7 +29,7 @@ const (
 	Process OrderEvent = "PROCESS" // Process event for parallel transition
 )
 
-// Order payload
+// Order context
 type OrderPayload struct {
 	OrderId string
 	Amount  float64

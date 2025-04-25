@@ -37,7 +37,7 @@ const (
 	ReturnToMenu   GameEvent = "RETURN_TO_MENU"
 )
 
-// Game payload
+// Game context
 type GamePayload struct {
 	PlayerID       string
 	CurrentLevel   int

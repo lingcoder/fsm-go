@@ -10,15 +10,15 @@ import (
 // StateMachine is a generic state machine interface
 // S: State type, must be comparable (e.g., string, int)
 // E: Event type, must be comparable
-// P: Payload type, can be any type, used to pass data during state transitions
-type StateMachine[S comparable, E comparable, P any] interface {
+// C: Context type, can be any type, used to pass data during state transitions
+type StateMachine[S comparable, E comparable, C any] interface {
 	// FireEvent triggers a state transition based on the current state and event
 	// Returns the new state and any error that occurred
-	FireEvent(sourceState S, event E, payload P) (S, error)
+	FireEvent(sourceState S, event E, ctx C) (S, error)
 
 	// FireParallelEvent triggers parallel state transitions based on the current state and event
 	// Returns a slice of new states and any error that occurred
-	FireParallelEvent(sourceState S, event E, payload P) ([]S, error)
+	FireParallelEvent(sourceState S, event E, ctx C) ([]S, error)
 
 	// Verify checks if there is a valid transition for the given state and event
 	// Returns true if a transition exists, false otherwise
@@ -41,29 +41,29 @@ const (
 	PlantUML DiagramFormat = iota
 	// MarkdownTable format for tabular representation
 	MarkdownTable
-	// MarkdownFlowchart format for flowcharts
-	MarkdownFlowchart
+	// MarkdownFlow format for flowcharts
+	MarkdownFlow
 	// MarkdownStateDiagram format for Mermaid state diagrams
 	MarkdownStateDiagram
 )
 
 // State represents a state in the state machine
-type State[S comparable, E comparable, P any] struct {
+type State[S comparable, E comparable, C any] struct {
 	id               S
-	eventTransitions map[E][]*Transition[S, E, P]
+	eventTransitions map[E][]*Transition[S, E, C]
 }
 
 // NewState creates a new state
-func NewState[S comparable, E comparable, P any](id S) *State[S, E, P] {
-	return &State[S, E, P]{
+func NewState[S comparable, E comparable, C any](id S) *State[S, E, C] {
+	return &State[S, E, C]{
 		id:               id,
-		eventTransitions: make(map[E][]*Transition[S, E, P]),
+		eventTransitions: make(map[E][]*Transition[S, E, C]),
 	}
 }
 
 // AddTransition adds a transition to this state
-func (s *State[S, E, P]) AddTransition(event E, target *State[S, E, P], transType TransitionType) *Transition[S, E, P] {
-	transition := &Transition[S, E, P]{
+func (s *State[S, E, C]) AddTransition(event E, target *State[S, E, C], transType TransitionType) *Transition[S, E, C] {
+	transition := &Transition[S, E, C]{
 		Source:    s,
 		Target:    target,
 		Event:     event,
@@ -71,15 +71,15 @@ func (s *State[S, E, P]) AddTransition(event E, target *State[S, E, P], transTyp
 	}
 
 	if _, ok := s.eventTransitions[event]; !ok {
-		s.eventTransitions[event] = make([]*Transition[S, E, P], 0)
+		s.eventTransitions[event] = make([]*Transition[S, E, C], 0)
 	}
 	s.eventTransitions[event] = append(s.eventTransitions[event], transition)
 	return transition
 }
 
 // AddParallelTransitions adds multiple transitions for the same event to different target states
-func (s *State[S, E, P]) AddParallelTransitions(event E, targets []*State[S, E, P], transType TransitionType) []*Transition[S, E, P] {
-	transitions := make([]*Transition[S, E, P], 0, len(targets))
+func (s *State[S, E, C]) AddParallelTransitions(event E, targets []*State[S, E, C], transType TransitionType) []*Transition[S, E, C] {
+	transitions := make([]*Transition[S, E, C], 0, len(targets))
 
 	for _, target := range targets {
 		transition := s.AddTransition(event, target, transType)
@@ -90,12 +90,12 @@ func (s *State[S, E, P]) AddParallelTransitions(event E, targets []*State[S, E, 
 }
 
 // GetEventTransitions returns all transitions for a given event
-func (s *State[S, E, P]) GetEventTransitions(event E) []*Transition[S, E, P] {
+func (s *State[S, E, C]) GetEventTransitions(event E) []*Transition[S, E, C] {
 	return s.eventTransitions[event]
 }
 
 // GetID returns the state ID
-func (s *State[S, E, P]) GetID() S {
+func (s *State[S, E, C]) GetID() S {
 	return s.id
 }
 
@@ -110,58 +110,58 @@ const (
 )
 
 // Condition is an interface for transition conditions
-type Condition[P any] interface {
+type Condition[C any] interface {
 	// IsSatisfied returns true if the condition is met
-	IsSatisfied(payload P) bool
+	IsSatisfied(ctx C) bool
 }
 
 // ConditionFunc is a function type that implements Condition interface
-type ConditionFunc[P any] func(payload P) bool
+type ConditionFunc[C any] func(ctx C) bool
 
 // IsSatisfied implements Condition interface
-func (f ConditionFunc[P]) IsSatisfied(payload P) bool {
-	return f(payload)
+func (f ConditionFunc[C]) IsSatisfied(ctx C) bool {
+	return f(ctx)
 }
 
 // Action is an interface for transition actions
-type Action[S comparable, E comparable, P any] interface {
+type Action[S comparable, E comparable, C any] interface {
 	// Execute runs the action during a state transition
-	Execute(from, to S, event E, payload P) error
+	Execute(from, to S, event E, ctx C) error
 }
 
 // ActionFunc is a function type that implements Action interface
-type ActionFunc[S comparable, E comparable, P any] func(from, to S, event E, payload P) error
+type ActionFunc[S comparable, E comparable, C any] func(from, to S, event E, ctx C) error
 
 // Execute implements Action interface
-func (f ActionFunc[S, E, P]) Execute(from, to S, event E, payload P) error {
-	return f(from, to, event, payload)
+func (f ActionFunc[S, E, C]) Execute(from, to S, event E, ctx C) error {
+	return f(from, to, event, ctx)
 }
 
 // Transition represents a state transition
-type Transition[S comparable, E comparable, P any] struct {
-	Source    *State[S, E, P]
-	Target    *State[S, E, P]
+type Transition[S comparable, E comparable, C any] struct {
+	Source    *State[S, E, C]
+	Target    *State[S, E, C]
 	Event     E
-	Condition Condition[P]
-	Action    Action[S, E, P]
+	Condition Condition[C]
+	Action    Action[S, E, C]
 	TransType TransitionType
 }
 
 // Transit executes the transition
-func (t *Transition[S, E, P]) Transit(payload P, checkCondition bool) (*State[S, E, P], error) {
+func (t *Transition[S, E, C]) Transit(ctx C, checkCondition bool) (*State[S, E, C], error) {
 	// Verify internal transition
 	if t.TransType == Internal && t.Source != t.Target {
 		return nil, errors.New("internal transition source and target states must be the same")
 	}
 
 	// Check condition if required
-	if checkCondition && t.Condition != nil && !t.Condition.IsSatisfied(payload) {
+	if checkCondition && t.Condition != nil && !t.Condition.IsSatisfied(ctx) {
 		return t.Source, nil // Stay at source state if condition is not satisfied
 	}
 
 	// Execute action
 	if t.Action != nil {
-		if err := t.Action.Execute(t.Source.GetID(), t.Target.GetID(), t.Event, payload); err != nil {
+		if err := t.Action.Execute(t.Source.GetID(), t.Target.GetID(), t.Event, ctx); err != nil {
 			return nil, errors.Wrap(err, "action execution failed")
 		}
 	}
@@ -170,24 +170,24 @@ func (t *Transition[S, E, P]) Transit(payload P, checkCondition bool) (*State[S,
 }
 
 // StateMachineImpl implements the StateMachine interface
-type StateMachineImpl[S comparable, E comparable, P any] struct {
+type StateMachineImpl[S comparable, E comparable, C any] struct {
 	id       string
-	stateMap map[S]*State[S, E, P]
+	stateMap map[S]*State[S, E, C]
 	ready    bool
 	mutex    sync.RWMutex
 }
 
 // NewStateMachine creates a new state machine
-func NewStateMachine[S comparable, E comparable, P any](id string) *StateMachineImpl[S, E, P] {
-	return &StateMachineImpl[S, E, P]{
+func NewStateMachine[S comparable, E comparable, C any](id string) *StateMachineImpl[S, E, C] {
+	return &StateMachineImpl[S, E, C]{
 		id:       id,
-		stateMap: make(map[S]*State[S, E, P]),
+		stateMap: make(map[S]*State[S, E, C]),
 		ready:    false,
 	}
 }
 
 // FireEvent triggers a state transition based on the current state and event
-func (sm *StateMachineImpl[S, E, P]) FireEvent(sourceStateId S, event E, payload P) (S, error) {
+func (sm *StateMachineImpl[S, E, C]) FireEvent(sourceStateId S, event E, ctx C) (S, error) {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -212,8 +212,8 @@ func (sm *StateMachineImpl[S, E, P]) FireEvent(sourceStateId S, event E, payload
 
 	// Find the first transition with satisfied condition
 	for _, transition := range transitions {
-		if transition.Condition == nil || transition.Condition.IsSatisfied(payload) {
-			targetState, err := transition.Transit(payload, true)
+		if transition.Condition == nil || transition.Condition.IsSatisfied(ctx) {
+			targetState, err := transition.Transit(ctx, true)
 			if err != nil {
 				var zeroState S
 				return zeroState, err
@@ -227,7 +227,7 @@ func (sm *StateMachineImpl[S, E, P]) FireEvent(sourceStateId S, event E, payload
 }
 
 // FireParallelEvent triggers parallel state transitions based on the current state and event
-func (sm *StateMachineImpl[S, E, P]) FireParallelEvent(sourceStateId S, event E, payload P) ([]S, error) {
+func (sm *StateMachineImpl[S, E, C]) FireParallelEvent(sourceStateId S, event E, ctx C) ([]S, error) {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -249,11 +249,11 @@ func (sm *StateMachineImpl[S, E, P]) FireParallelEvent(sourceStateId S, event E,
 
 	// Execute all transitions with satisfied conditions
 	var results []S
-	var validTransitions []*Transition[S, E, P]
+	var validTransitions []*Transition[S, E, C]
 
 	// First, find all valid transitions
 	for _, transition := range transitions {
-		if transition.Condition == nil || transition.Condition.IsSatisfied(payload) {
+		if transition.Condition == nil || transition.Condition.IsSatisfied(ctx) {
 			validTransitions = append(validTransitions, transition)
 		}
 	}
@@ -264,7 +264,7 @@ func (sm *StateMachineImpl[S, E, P]) FireParallelEvent(sourceStateId S, event E,
 
 	// Then execute all valid transitions
 	for _, transition := range validTransitions {
-		targetState, err := transition.Transit(payload, false) // Skip condition check as we've already verified it
+		targetState, err := transition.Transit(ctx, false) // Don't check condition again
 		if err != nil {
 			return nil, err
 		}
@@ -275,7 +275,7 @@ func (sm *StateMachineImpl[S, E, P]) FireParallelEvent(sourceStateId S, event E,
 }
 
 // Verify checks if there is a valid transition for the given state and event
-func (sm *StateMachineImpl[S, E, P]) Verify(sourceStateId S, event E) bool {
+func (sm *StateMachineImpl[S, E, C]) Verify(sourceStateId S, event E) bool {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -297,7 +297,7 @@ func (sm *StateMachineImpl[S, E, P]) Verify(sourceStateId S, event E) bool {
 }
 
 // GetState returns a state by ID, creating it if it doesn't exist
-func (sm *StateMachineImpl[S, E, P]) GetState(stateId S) *State[S, E, P] {
+func (sm *StateMachineImpl[S, E, C]) GetState(stateId S) *State[S, E, C] {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -305,20 +305,20 @@ func (sm *StateMachineImpl[S, E, P]) GetState(stateId S) *State[S, E, P] {
 		return state
 	}
 
-	state := NewState[S, E, P](stateId)
+	state := NewState[S, E, C](stateId)
 	sm.stateMap[stateId] = state
 	return state
 }
 
 // SetReady marks the state machine as ready
-func (sm *StateMachineImpl[S, E, P]) SetReady(ready bool) {
+func (sm *StateMachineImpl[S, E, C]) SetReady(ready bool) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	sm.ready = ready
 }
 
 // ShowStateMachine returns a string representation of the state machine
-func (sm *StateMachineImpl[S, E, P]) ShowStateMachine() string {
+func (sm *StateMachineImpl[S, E, C]) ShowStateMachine() string {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -343,7 +343,7 @@ func (sm *StateMachineImpl[S, E, P]) ShowStateMachine() string {
 // GenerateDiagram returns a diagram of the state machine in the specified formats
 // If formats is nil or empty, defaults to PlantUML
 // If multiple formats are provided, returns all requested formats concatenated
-func (sm *StateMachineImpl[S, E, P]) GenerateDiagram(formats ...DiagramFormat) string {
+func (sm *StateMachineImpl[S, E, C]) GenerateDiagram(formats ...DiagramFormat) string {
 	if len(formats) == 0 {
 		return sm.generatePlantUML()
 	}
@@ -357,7 +357,7 @@ func (sm *StateMachineImpl[S, E, P]) GenerateDiagram(formats ...DiagramFormat) s
 		switch format {
 		case MarkdownTable:
 			result.WriteString(sm.generateMarkdownTable())
-		case MarkdownFlowchart:
+		case MarkdownFlow:
 			result.WriteString(sm.generateMarkdownFlow())
 		case MarkdownStateDiagram:
 			result.WriteString(sm.generateMarkdownStateDiagram())
@@ -372,7 +372,7 @@ func (sm *StateMachineImpl[S, E, P]) GenerateDiagram(formats ...DiagramFormat) s
 }
 
 // generatePlantUML returns a PlantUML diagram of the state machine
-func (sm *StateMachineImpl[S, E, P]) generatePlantUML() string {
+func (sm *StateMachineImpl[S, E, C]) generatePlantUML() string {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -399,7 +399,7 @@ func (sm *StateMachineImpl[S, E, P]) generatePlantUML() string {
 }
 
 // generateMarkdownTable returns a Markdown table representation of the state machine
-func (sm *StateMachineImpl[S, E, P]) generateMarkdownTable() string {
+func (sm *StateMachineImpl[S, E, C]) generateMarkdownTable() string {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -445,7 +445,7 @@ func (sm *StateMachineImpl[S, E, P]) generateMarkdownTable() string {
 }
 
 // generateMarkdownFlow returns a Mermaid flowchart diagram in Markdown format
-func (sm *StateMachineImpl[S, E, P]) generateMarkdownFlow() string {
+func (sm *StateMachineImpl[S, E, C]) generateMarkdownFlow() string {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -480,18 +480,23 @@ func (sm *StateMachineImpl[S, E, P]) generateMarkdownFlow() string {
 }
 
 // generateMarkdownStateDiagram returns a Mermaid state diagram in Markdown format
-func (sm *StateMachineImpl[S, E, P]) generateMarkdownStateDiagram() string {
+func (sm *StateMachineImpl[S, E, C]) generateMarkdownStateDiagram() string {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
 	var sb strings.Builder
 	sb.WriteString("```mermaid\nstateDiagram-v2\n")
 
-	// Define transitions (states will be automatically created)
+	// Define states
+	for stateId := range sm.stateMap {
+		sb.WriteString(fmt.Sprintf("    state \"%v\"\n", stateId))
+	}
+
+	// Define transitions
 	for _, state := range sm.stateMap {
 		for _, transitions := range state.eventTransitions {
 			for _, transition := range transitions {
-				sb.WriteString(fmt.Sprintf("    %v --> %v : %v\n",
+				sb.WriteString(fmt.Sprintf("    [%v] --> [%v] : %v\n",
 					transition.Source.id, transition.Target.id, transition.Event))
 			}
 		}
@@ -503,18 +508,18 @@ func (sm *StateMachineImpl[S, E, P]) generateMarkdownStateDiagram() string {
 
 // GeneratePlantUML returns a PlantUML diagram of the state machine
 // Deprecated: Use GenerateDiagram(PlantUML) or GenerateDiagram() instead
-func (sm *StateMachineImpl[S, E, P]) GeneratePlantUML() string {
+func (sm *StateMachineImpl[S, E, C]) GeneratePlantUML() string {
 	return sm.GenerateDiagram(PlantUML)
 }
 
 // GenerateMarkdown returns a Markdown representation of the state machine
 // Deprecated: Use GenerateDiagram(MarkdownTable) instead
-func (sm *StateMachineImpl[S, E, P]) GenerateMarkdown() string {
+func (sm *StateMachineImpl[S, E, C]) GenerateMarkdown() string {
 	return sm.GenerateDiagram(MarkdownTable)
 }
 
 // GenerateMarkdownFlowchart returns a Mermaid flowchart diagram in Markdown format
-// Deprecated: Use GenerateDiagram(MarkdownFlowchart) instead
-func (sm *StateMachineImpl[S, E, P]) GenerateMarkdownFlowchart() string {
-	return sm.GenerateDiagram(MarkdownFlowchart)
+// Deprecated: Use GenerateDiagram(MarkdownFlow) instead
+func (sm *StateMachineImpl[S, E, C]) GenerateMarkdownFlowchart() string {
+	return sm.GenerateDiagram(MarkdownFlow)
 }

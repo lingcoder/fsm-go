@@ -24,7 +24,7 @@ var registry = &stateMachineRegistry{
 // Returns:
 //
 //	Error if a state machine with the same ID already exists
-func RegisterStateMachine[S comparable, E comparable, P any](machineId string, stateMachine StateMachine[S, E, P]) error {
+func RegisterStateMachine[S comparable, E comparable, C any](machineId string, stateMachine StateMachine[S, E, C]) error {
 	registry.mutex.Lock()
 	defer registry.mutex.Unlock()
 
@@ -44,12 +44,12 @@ func RegisterStateMachine[S comparable, E comparable, P any](machineId string, s
 // Returns:
 //
 //	The state machine instance and error if not found or type mismatch
-func GetStateMachine[S comparable, E comparable, P any](machineId string) (StateMachine[S, E, P], error) {
+func GetStateMachine[S comparable, E comparable, C any](machineId string) (StateMachine[S, E, C], error) {
 	registry.mutex.RLock()
 	defer registry.mutex.RUnlock()
 
 	if sm, exists := registry.stateMachines[machineId]; exists {
-		if typedSM, ok := sm.(StateMachine[S, E, P]); ok {
+		if typedSM, ok := sm.(StateMachine[S, E, C]); ok {
 			return typedSM, nil
 		}
 		return nil, StateMachineNotFound(machineId)
