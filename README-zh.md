@@ -14,34 +14,34 @@
 
 ---
 
-## 🚀 概述
+## 概述
 
 FSM-Go 是一个轻量级、高性能、无状态的有限状态机 Go 实现，灵感来自阿里巴巴的 COLA 状态机组件。它提供了流畅的 API 用于定义状态机，并使用 Go 泛型确保类型安全。
 
-## ✨ 特性
+## 特性
 
-- 🪶 **轻量级和无状态设计**，提供高性能
-- 🔒 使用 **Go 泛型**实现类型安全
-- 🔄 **流畅的 API** 用于定义状态机
-- 🔀 **多种转换类型**：
+- 轻量级和无状态设计，提供高性能
+- 使用 Go 泛型实现类型安全
+- 流畅的 API 用于定义状态机
+- 多种转换类型：
   - 外部状态转换（不同状态之间）
   - 内部状态转换（同一状态内）
   - 并行转换（一对多）
   - 批量转换（多对一）
-- 🧩 **函数类型支持**，简化条件和动作的定义
-- 🔍 带有**自定义逻辑的条件转换**
-- 🎬 转换过程中执行的**动作**
-- ✅ **状态转换验证**功能
-- 🔄 **线程安全**，支持并发使用
-- 📊 支持**状态机图表可视化**
+- 函数类型支持，简化条件和动作的定义
+- 带有自定义逻辑的条件转换
+- 转换过程中执行的动作
+- 状态转换验证功能
+- 线程安全，支持并发使用
+- 支持状态机图表可视化 (PlantUML, Markdown 表格和 Markdown 流程图)
 
-## 📦 安装
+## 安装
 
 ```bash
 go get github.com/lingcoder/fsm-go
 ```
 
-## 🔍 使用方法
+## 使用方法
 
 ```go
 package main
@@ -145,7 +145,7 @@ func main() {
 	fmt.Printf("新状态: %v\n", newState)
 }
 
-## 🧩 核心概念
+## 核心概念
 
 | 概念 | 描述 |
 |------|------|
@@ -163,7 +163,7 @@ func main() {
 - **并行转换 (Parallel Transition)**: 一个事件触发到多个目标状态的转换
 - **批量转换 (Multiple Transition)**: 多个源状态到一个目标状态的转换
 
-## 📚 示例
+## 示例
 
 查看 `examples` 目录获取更详细的示例：
 
@@ -171,7 +171,7 @@ func main() {
 - `examples/workflow`: 审批工作流
 - `examples/game`: 游戏状态管理
 
-## 🔧 高级功能
+## 高级功能
 
 ### 函数类型支持
 
@@ -214,10 +214,10 @@ newStates, err := stateMachine.FireParallelEvent(OrderPaid, EventProcess, ctx)
 
 ```go
 builder.ExternalTransitions().
-    FromAmong(OrderCreated, OrderPaid, OrderShipped).
-    To(OrderCancelled).
-    On(EventCancel).
-    PerformFunc(cancelAction)
+    FromAmong(OrderCreated, OrderPaid, OrderShipped).  // 多个源状态
+    To(OrderCancelled).  // 目标状态
+    On(EventCancel).     // 触发事件
+    PerformFunc(cancelAction)  // 转换动作
 ```
 
 ### 转换验证
@@ -234,7 +234,28 @@ if stateMachine.Verify(currentState, event) {
 }
 ```
 
-## ⚡ 性能
+## 可视化
+
+FSM-Go 提供一种统一的方式来可视化状态机：
+
+```go
+// 默认格式 (PlantUML)
+plantUML := stateMachine.GenerateDiagram()
+
+// 生成特定格式
+table := stateMachine.GenerateDiagram(fsm.MarkdownTable)     // Markdown 表格格式
+flow := stateMachine.GenerateDiagram(fsm.MarkdownFlow)       // Markdown 流程图格式
+
+// 生成多种格式
+combined := stateMachine.GenerateDiagram(fsm.PlantUML, fsm.MarkdownTable, fsm.MarkdownFlow)
+
+// 为向后兼容，这些方法仍然可用但已弃用
+plantUML = stateMachine.GeneratePlantUML()
+table = stateMachine.GenerateMarkdown()
+flow = stateMachine.GenerateMarkdownFlowchart()
+```
+
+## 性能
 
 FSM-Go 设计注重高性能：
 
@@ -243,7 +264,7 @@ FSM-Go 设计注重高性能：
 - **线程安全**，支持并发使用
 - 测试套件中包含**基准测试**
 
-## 🔍 实现细节
+## 实现细节
 
 ### 状态机接口
 
@@ -264,8 +285,10 @@ type StateMachine[S comparable, E comparable, C any] interface {
 	// ShowStateMachine 返回状态机的字符串表示
 	ShowStateMachine() string
 
-	// GeneratePlantUML 返回状态机的 PlantUML 图表
-	GeneratePlantUML() string
+	// GenerateDiagram 返回状态机的图表
+	// 如果 formats 为空或 nil，则默认为 PlantUML
+	// 如果提供多种格式，则返回所有请求的格式的连接
+	GenerateDiagram(formats ...DiagramFormat) string
 }
 ```
 
@@ -306,6 +329,6 @@ builder.ExternalTransitions().
 stateMachine, err := builder.Build("OrderStateMachine")
 ```
 
-## 📄 许可证
+## 许可证
 
 MIT

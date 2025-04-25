@@ -143,7 +143,15 @@ func main() {
 	fmt.Println("\n=== State Machine Diagram ===")
 	fmt.Println(stateMachine.ShowStateMachine())
 
-	// Generate PlantUML diagram
-	fmt.Println("\n=== PlantUML Diagram ===")
-	fmt.Println(stateMachine.GeneratePlantUML())
+	// Generate default diagram (PlantUML)
+	fmt.Println("\n=== Default Diagram (PlantUML) ===")
+	fmt.Println(stateMachine.GenerateDiagram())
+
+	// Generate specific format
+	fmt.Println("\n=== Markdown Table Representation ===")
+	fmt.Println(stateMachine.GenerateDiagram(fsm.MarkdownTable))
+
+	// Generate multiple formats at once
+	fmt.Println("\n=== Multiple Formats (PlantUML and Flow) ===")
+	fmt.Println(stateMachine.GenerateDiagram(fsm.PlantUML, fsm.MarkdownFlow))
 }

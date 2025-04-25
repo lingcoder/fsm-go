@@ -34,7 +34,7 @@ FSM-Go is a lightweight, high-performance, stateless finite state machine implem
 - 🎬 **Actions** that execute during transitions
 - ✅ **Transition verification** capability
 - 🔄 **Thread-safe** for concurrent use
-- 📊 **Visualization support** for state machine diagrams
+- 📊 **Visualization support** for state machine diagrams (PlantUML, Markdown tables, and Mermaid flowcharts)
 
 ## 📦 Installation
 
@@ -145,7 +145,6 @@ func main() {
 	
 	fmt.Printf("New state: %v\n", newState)
 }
-```
 
 ## 🧩 Core Concepts
 
@@ -216,10 +215,10 @@ Transitions from multiple source states to a single target state:
 
 ```go
 builder.ExternalTransitions().
-    FromAmong(OrderCreated, OrderPaid, OrderShipped).
-    To(OrderCancelled).
-    On(EventCancel).
-    PerformFunc(cancelAction)
+    FromAmong(OrderCreated, OrderPaid, OrderShipped).  // Multiple source states
+    To(OrderCancelled).  // Target state
+    On(EventCancel).     // Triggering event
+    PerformFunc(cancelAction)  // Transition action
 ```
 
 ### Transition Verification
@@ -266,8 +265,10 @@ type StateMachine[S comparable, E comparable, C any] interface {
 	// ShowStateMachine returns a string representation of the state machine
 	ShowStateMachine() string
 
-	// GeneratePlantUML returns a PlantUML diagram of the state machine
-	GeneratePlantUML() string
+	// GenerateDiagram returns a diagram of the state machine in the specified formats
+	// If formats is nil or empty, defaults to PlantUML
+	// If multiple formats are provided, returns all requested formats concatenated
+	GenerateDiagram(formats ...DiagramFormat) string
 }
 ```
 
@@ -312,7 +313,64 @@ stateMachine, err := builder.Build("OrderStateMachine")
 
 MIT
 
----
+### Visualization
+
+FSM-Go provides a unified way to visualize your state machine with different formats:
+
+```go
+// Default format (PlantUML)
+plantUML := stateMachine.GenerateDiagram()
+
+// Generate specific format
+table := stateMachine.GenerateDiagram(fsm.MarkdownTable)     // Markdown table format
+flow := stateMachine.GenerateDiagram(fsm.MarkdownFlow)       // Markdown flow chart format
+
+// Generate multiple formats at once
+combined := stateMachine.GenerateDiagram(fsm.PlantUML, fsm.MarkdownTable, fsm.MarkdownFlow)
+
+// For backward compatibility, these methods are still available but deprecated
+plantUML = stateMachine.GeneratePlantUML()
+table = stateMachine.GenerateMarkdown()
+flow = stateMachine.GenerateMarkdownFlowchart()
+```
+
+The Markdown output provides a readable table of all transitions:
+
+```markdown
+# State Machine: OrderStateMachine
+
+## States
+
+- `CREATED`
+- `PAID`
+- `DELIVERED`
+- `CANCELLED`
+
+## Transitions
+
+| Source State | Event | Target State | Type |
+|-------------|-------|--------------|------|
+| `CREATED` | `PAY` | `PAID` | External |
+| `PAID` | `DELIVER` | `DELIVERED` | External |
+| `CREATED` | `CANCEL` | `CANCELLED` | External |
+| `PAID` | `CANCEL` | `CANCELLED` | External |
+```
+
+The Mermaid flowchart provides a visual diagram that can be rendered in Markdown editors that support Mermaid:
+
+```markdown
+```mermaid
+flowchart TD
+    state_0["CREATED"]
+    state_1["PAID"]
+    state_2["DELIVERED"]
+    state_3["CANCELLED"]
+    state_0 -->|PAY| state_1
+    state_0 -->|CANCEL| state_3
+    state_1 -->|DELIVER| state_2
+    state_1 -->|CANCEL| state_3
+```
+```
 
 <div align="center">
   <h1>中文文档</h1>
@@ -325,7 +383,7 @@ FSM-Go 是一个轻量级、高性能、无状态的有限状态机 Go 实现，
 - 🪶 **轻量级和无状态设计**，提供高性能
 - 🔒 使用 **Go 泛型**实现类型安全
 - 🔄 **流畅的 API** 用于定义状态机
-- 🔀 **多种转换类型**:
+- 🔀 **多种转换类型**：
   - 外部状态转换
   - 内部状态转换
   - 并行转换
@@ -335,7 +393,7 @@ FSM-Go 是一个轻量级、高性能、无状态的有限状态机 Go 实现，
 - 🎬 转换过程中执行的**动作**
 - ✅ **状态转换验证**功能
 - 🔄 **线程安全**，支持并发使用
-- 📊 支持**状态机图表可视化**
+- 📊 支持**状态机图表可视化** (PlantUML, Markdown 表格和 Mermaid 流程图)
 
 ## 📦 安装
 
@@ -446,7 +504,6 @@ func main() {
 	
 	fmt.Printf("新状态: %v\n", newState)
 }
-```
 
 ## 🧩 核心概念
 
@@ -567,8 +624,11 @@ type StateMachine[S comparable, E comparable, C any] interface {
 	// ShowStateMachine 返回状态机的字符串表示
 	ShowStateMachine() string
 
-	// GeneratePlantUML 返回状态机的 PlantUML 图表
-	GeneratePlantUML() string
+	// GenerateDiagram 返回状态机的图表
+	// Formats 可以是 "plantuml"、"table" 或 "flow"
+	// 如果 formats 为空或 nil，则默认为 "plantuml"
+	// 如果提供多种格式，则返回所有请求的格式的连接
+	GenerateDiagram(formats ...DiagramFormat) string
 }
 ```
 
@@ -612,3 +672,61 @@ stateMachine, err := builder.Build("OrderStateMachine")
 ## 📄 许可证
 
 MIT
+
+### 可视化
+
+FSM-Go 提供一种统一的方式来可视化状态机：
+
+```go
+// 默认格式 (PlantUML)
+plantUML := stateMachine.GenerateDiagram()
+
+// 生成特定格式
+table := stateMachine.GenerateDiagram(fsm.MarkdownTable)     // Markdown 表格格式
+flow := stateMachine.GenerateDiagram(fsm.MarkdownFlow)       // Markdown 流程图格式
+
+// 生成多种格式
+combined := stateMachine.GenerateDiagram(fsm.PlantUML, fsm.MarkdownTable, fsm.MarkdownFlow)
+
+// 为向后兼容，这些方法仍然可用但已弃用
+plantUML = stateMachine.GeneratePlantUML()
+table = stateMachine.GenerateMarkdown()
+flow = stateMachine.GenerateMarkdownFlowchart()
+```
+
+Markdown 输出提供了一个可读的转换表格：
+
+```markdown
+# 状态机：OrderStateMachine
+
+## 状态
+
+- `CREATED`
+- `PAID`
+- `DELIVERED`
+- `CANCELLED`
+
+## 转换
+
+| 源状态 | 事件 | 目标状态 | 类型 |
+|--------|------|----------|------|
+| `CREATED` | `PAY` | `PAID` | External |
+| `PAID` | `DELIVER` | `DELIVERED` | External |
+| `CREATED` | `CANCEL` | `CANCELLED` | External |
+| `PAID` | `CANCEL` | `CANCELLED` | External |
+```
+
+Mermaid 流程图提供了一个可视化的图表，可以在支持 Mermaid 的 Markdown 编辑器中渲染：
+
+```markdown
+```mermaid
+flowchart TD
+    state_0["CREATED"]
+    state_1["PAID"]
+    state_2["DELIVERED"]
+    state_3["CANCELLED"]
+    state_0 -->|PAY| state_1
+    state_0 -->|CANCEL| state_3
+    state_1 -->|DELIVER| state_2
+    state_1 -->|CANCEL| state_3
+```

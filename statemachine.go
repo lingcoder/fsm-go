@@ -3,6 +3,7 @@ package fsm
 import (
 	"fmt"
 	"github.com/pkg/errors"
+	"strings"
 	"sync"
 )
 
@@ -26,9 +27,23 @@ type StateMachine[S comparable, E comparable, C any] interface {
 	// ShowStateMachine returns a string representation of the state machine
 	ShowStateMachine() string
 
-	// GeneratePlantUML returns a PlantUML diagram of the state machine
-	GeneratePlantUML() string
+	// GenerateDiagram returns a diagram of the state machine in the specified formats
+	// If formats is nil or empty, defaults to PlantUML
+	// If multiple formats are provided, returns all requested formats concatenated
+	GenerateDiagram(formats ...DiagramFormat) string
 }
+
+// DiagramFormat defines the supported diagram formats
+type DiagramFormat int
+
+const (
+	// PlantUML format for UML diagrams
+	PlantUML DiagramFormat = iota
+	// MarkdownTable format for tabular representation
+	MarkdownTable
+	// MarkdownFlow format for flowcharts
+	MarkdownFlow
+)
 
 // State represents a state in the state machine
 type State[S comparable, E comparable, C any] struct {
@@ -323,29 +338,157 @@ func (sm *StateMachineImpl[S, E, C]) ShowStateMachine() string {
 	return result
 }
 
-// GeneratePlantUML returns a PlantUML diagram of the state machine
-func (sm *StateMachineImpl[S, E, C]) GeneratePlantUML() string {
+// GenerateDiagram returns a diagram of the state machine in the specified formats
+// If formats is nil or empty, defaults to PlantUML
+// If multiple formats are provided, returns all requested formats concatenated
+func (sm *StateMachineImpl[S, E, C]) GenerateDiagram(formats ...DiagramFormat) string {
+	if len(formats) == 0 {
+		return sm.generatePlantUML()
+	}
+
+	var result strings.Builder
+	for i, format := range formats {
+		if i > 0 {
+			result.WriteString("\n\n")
+		}
+
+		switch format {
+		case MarkdownTable:
+			result.WriteString(sm.generateMarkdownTable())
+		case MarkdownFlow:
+			result.WriteString(sm.generateMarkdownFlow())
+		case PlantUML:
+			result.WriteString(sm.generatePlantUML())
+		default:
+			result.WriteString(sm.generatePlantUML())
+		}
+	}
+
+	return result.String()
+}
+
+// generatePlantUML returns a PlantUML diagram of the state machine
+func (sm *StateMachineImpl[S, E, C]) generatePlantUML() string {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
-	result := "@startuml\n"
-	result += fmt.Sprintf("title StateMachine: %s\n", sm.id)
+	var sb strings.Builder
+	sb.WriteString("@startuml\n")
+	sb.WriteString(fmt.Sprintf("title StateMachine: %s\n", sm.id))
 
 	// Define states
 	for stateId := range sm.stateMap {
-		result += fmt.Sprintf("state \"%v\" as %v\n", stateId, stateId)
+		sb.WriteString(fmt.Sprintf("state \"%v\" as %v\n", stateId, stateId))
 	}
 
 	// Define transitions
 	for _, state := range sm.stateMap {
-		for event, transitions := range state.eventTransitions {
+		for _, transitions := range state.eventTransitions {
 			for _, transition := range transitions {
-				result += fmt.Sprintf("%v --> %v : %v\n",
-					transition.Source.GetID(), transition.Target.GetID(), event)
+				sb.WriteString(fmt.Sprintf("%v --> %v : %v\n", transition.Source.id, transition.Target.id, transition.Event))
 			}
 		}
 	}
 
-	result += "@enduml\n"
-	return result
+	sb.WriteString("@enduml\n")
+	return sb.String()
+}
+
+// generateMarkdownTable returns a Markdown table representation of the state machine
+func (sm *StateMachineImpl[S, E, C]) generateMarkdownTable() string {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("# State Machine: %s\n\n", sm.id))
+
+	// States section
+	sb.WriteString("## States\n\n")
+	for stateId := range sm.stateMap {
+		sb.WriteString(fmt.Sprintf("- `%v`\n", stateId))
+	}
+	sb.WriteString("\n")
+
+	// Transitions section
+	sb.WriteString("## Transitions\n\n")
+	sb.WriteString("| Source State | Event | Target State | Type |\n")
+	sb.WriteString("|-------------|-------|--------------|------|\n")
+
+	// Sort states for consistent output
+	stateIds := make([]S, 0, len(sm.stateMap))
+	for stateId := range sm.stateMap {
+		stateIds = append(stateIds, stateId)
+	}
+
+	// Sort events for each state
+	for _, sourceId := range stateIds {
+		sourceState := sm.stateMap[sourceId]
+
+		for event, transitions := range sourceState.eventTransitions {
+			for _, transition := range transitions {
+				transType := "External"
+				if transition.TransType == Internal {
+					transType = "Internal"
+				}
+
+				sb.WriteString(fmt.Sprintf("| `%v` | `%v` | `%v` | %s |\n",
+					sourceId, event, transition.Target.id, transType))
+			}
+		}
+	}
+
+	return sb.String()
+}
+
+// generateMarkdownFlow returns a Mermaid flowchart diagram in Markdown format
+func (sm *StateMachineImpl[S, E, C]) generateMarkdownFlow() string {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	var sb strings.Builder
+	sb.WriteString("```mermaid\nflowchart TD\n")
+
+	// Define node IDs - we need to ensure they are valid Mermaid IDs
+	nodeIds := make(map[S]string)
+	i := 0
+	for stateId := range sm.stateMap {
+		// Create a valid Mermaid ID (alphanumeric and underscores only)
+		nodeIds[stateId] = fmt.Sprintf("state_%d", i)
+		sb.WriteString(fmt.Sprintf("    %s[\"%v\"]\n", nodeIds[stateId], stateId))
+		i++
+	}
+
+	// Define transitions
+	for _, state := range sm.stateMap {
+		sourceNodeId := nodeIds[state.id]
+
+		for event, transitions := range state.eventTransitions {
+			for _, transition := range transitions {
+				targetNodeId := nodeIds[transition.Target.id]
+				sb.WriteString(fmt.Sprintf("    %s -->|%v| %s\n",
+					sourceNodeId, event, targetNodeId))
+			}
+		}
+	}
+
+	sb.WriteString("```\n")
+	return sb.String()
+}
+
+// GeneratePlantUML returns a PlantUML diagram of the state machine
+// Deprecated: Use GenerateDiagram(PlantUML) or GenerateDiagram() instead
+func (sm *StateMachineImpl[S, E, C]) GeneratePlantUML() string {
+	return sm.GenerateDiagram(PlantUML)
+}
+
+// GenerateMarkdown returns a Markdown representation of the state machine
+// Deprecated: Use GenerateDiagram(MarkdownTable) instead
+func (sm *StateMachineImpl[S, E, C]) GenerateMarkdown() string {
+	return sm.GenerateDiagram(MarkdownTable)
+}
+
+// GenerateMarkdownFlowchart returns a Mermaid flowchart diagram in Markdown format
+// Deprecated: Use GenerateDiagram(MarkdownFlow) instead
+func (sm *StateMachineImpl[S, E, C]) GenerateMarkdownFlowchart() string {
+	return sm.GenerateDiagram(MarkdownFlow)
 }
