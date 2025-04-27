@@ -12,6 +12,6 @@ var (
 	ErrTransitionNotFound       = errors.New("no transition found")
 	ErrConditionNotMet          = errors.New("transition conditions not met")
 	ErrActionExecutionFailed    = errors.New("action execution failed")
-	ErrStateMachineNotBuilt     = errors.New("state machine is not built yet")
+	ErrStateMachineNotReady     = errors.New("state machine is not ready yet")
 	ErrInternalTransition       = errors.New("internal transition source and target states must be the same")
 )

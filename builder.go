@@ -115,7 +115,7 @@ type StateMachineBuilder[S comparable, E comparable, P any] struct {
 //	A new state machine builder instance
 func NewStateMachineBuilder[S comparable, E comparable, P any]() *StateMachineBuilder[S, E, P] {
 	return &StateMachineBuilder[S, E, P]{
-		stateMachine: NewStateMachine[S, E, P](""),
+		stateMachine: newStateMachine[S, E, P](""),
 	}
 }
 

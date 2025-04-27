@@ -176,8 +176,8 @@ type StateMachineImpl[S comparable, E comparable, P any] struct {
 	mutex    sync.RWMutex
 }
 
-// NewStateMachine creates a new state machine
-func NewStateMachine[S comparable, E comparable, P any](id string) *StateMachineImpl[S, E, P] {
+// newStateMachine creates a new state machine (package private)
+func newStateMachine[S comparable, E comparable, P any](id string) *StateMachineImpl[S, E, P] {
 	return &StateMachineImpl[S, E, P]{
 		id:       id,
 		stateMap: make(map[S]*State[S, E, P]),
@@ -192,7 +192,7 @@ func (sm *StateMachineImpl[S, E, P]) FireEvent(sourceStateId S, event E, payload
 
 	if !sm.ready {
 		var zeroState S
-		return zeroState, ErrStateMachineNotBuilt
+		return zeroState, ErrStateMachineNotReady
 	}
 
 	// Get source state
@@ -231,7 +231,7 @@ func (sm *StateMachineImpl[S, E, P]) FireParallelEvent(sourceStateId S, event E,
 	defer sm.mutex.RUnlock()
 
 	if !sm.ready {
-		return nil, ErrStateMachineNotBuilt
+		return nil, ErrStateMachineNotReady
 	}
 
 	// Get source state
