@@ -565,19 +565,6 @@ type OnTransitionBuilder[S comparable, E comparable, P any, Next any] struct {
 	transitionType TransitionType
 }
 
-// To specifies the target state
-// Parameters:
-//
-//	state: Target state
-//
-// Returns:
-//
-//	The on transition builder for method chaining
-func (b *OnTransitionBuilder[S, E, P, Next]) To(state S) ToInterface[S, E, P] {
-	// Currently not used
-	return nil
-}
-
 // On specifies the triggering event
 // Parameters:
 //
